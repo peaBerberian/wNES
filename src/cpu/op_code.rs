@@ -21,7 +21,7 @@ pub(super) fn parse(instr: u8) -> (Instruction, AddressMode) {
         0x31 => (Instruction::AND, AddressMode::IndirectZeroPageY),
 
         // ASL
-        0x0A => (Instruction::ASL, AddressMode::Implied),
+        0x0A => (Instruction::ASL, AddressMode::Accumulator),
         0x06 => (Instruction::ASL, AddressMode::ZeroPage),
         0x16 => (Instruction::ASL, AddressMode::ZeroPageX),
         0x0E => (Instruction::ASL, AddressMode::Absolute),
@@ -138,7 +138,7 @@ pub(super) fn parse(instr: u8) -> (Instruction, AddressMode) {
         0xBC => (Instruction::LDY, AddressMode::AbsoluteY),
 
         // LSR
-        0x4A => (Instruction::LSR, AddressMode::Implied),
+        0x4A => (Instruction::LSR, AddressMode::Accumulator),
         0x46 => (Instruction::LSR, AddressMode::ZeroPage),
         0x56 => (Instruction::LSR, AddressMode::ZeroPageX),
         0x4E => (Instruction::LSR, AddressMode::Absolute),
@@ -165,14 +165,14 @@ pub(super) fn parse(instr: u8) -> (Instruction, AddressMode) {
         0x28 => (Instruction::PLP, AddressMode::Implied),
 
         // ROL
-        0x2A => (Instruction::ROL, AddressMode::Implied),
+        0x2A => (Instruction::ROL, AddressMode::Accumulator),
         0x26 => (Instruction::ROL, AddressMode::ZeroPage),
         0x36 => (Instruction::ROL, AddressMode::ZeroPageX),
         0x2E => (Instruction::ROL, AddressMode::Absolute),
         0x3E => (Instruction::ROL, AddressMode::AbsoluteX),
 
         // ROR
-        0x6A => (Instruction::ROR, AddressMode::Implied),
+        0x6A => (Instruction::ROR, AddressMode::Accumulator),
         0x66 => (Instruction::ROR, AddressMode::ZeroPage),
         0x76 => (Instruction::ROR, AddressMode::ZeroPageX),
         0x6E => (Instruction::ROR, AddressMode::Absolute),
@@ -237,6 +237,8 @@ pub(super) fn parse(instr: u8) -> (Instruction, AddressMode) {
 pub(super) enum AddressMode {
     /// For Unrecognized instructions
     Unknown,
+    /// These instructions apply on the Accumulator register.
+    Accumulator,
     /// These instructions act directly on one or more registers or flags internal to the CPU.
     /// Therefore, these instructions are principally single-byte instructions, lacking an explicit
     /// operand. The operand is implied, as it is already provided by the very instruction.
