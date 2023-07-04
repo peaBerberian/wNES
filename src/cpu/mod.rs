@@ -33,11 +33,6 @@ pub(super) struct NesCpu<'a> {
     /// Value of the Program Counter Register. Storing the address of the next
     /// instruction to read.
     program_counter: u16,
-
-    /// Value of the Maximum address at which the current loaded ROM is
-    /// accessing.
-    /// TODO really needed?
-    program_max_ptr: u16,
 }
 
 impl<'a> NesCpu<'a> {
@@ -50,7 +45,6 @@ impl<'a> NesCpu<'a> {
             stack_pointer: 0xFF,
             program_counter: 0x8000,
             bus,
-            program_max_ptr: 0,
         }
     }
 
@@ -132,9 +126,6 @@ impl<'a> NesCpu<'a> {
     fn compute_addr(&mut self, mode: AddressMode) -> Result<u16, AddressComputationError> {
         match mode {
             AddressMode::Immediate => {
-                if self.program_max_ptr <= self.program_counter {
-                    return Err(AddressComputationError::MemoryOverflow);
-                }
                 let pc = self.program_counter;
                 self.program_counter += 1;
 
@@ -142,9 +133,6 @@ impl<'a> NesCpu<'a> {
                 Ok(pc)
             }
             AddressMode::Absolute => {
-                if self.program_max_ptr <= self.program_counter + 1 {
-                    return Err(AddressComputationError::MemoryOverflow);
-                }
                 let val = self.read_u16_at(self.program_counter);
                 self.program_counter += 2;
                 Ok(val)
@@ -153,54 +141,36 @@ impl<'a> NesCpu<'a> {
             AddressMode::Accumulator => Err(AddressComputationError::NoAddress),
             AddressMode::Implied => Err(AddressComputationError::NoAddress),
             AddressMode::ZeroPage => {
-                if self.program_max_ptr <= self.program_counter {
-                    return Err(AddressComputationError::MemoryOverflow);
-                }
                 let current_counter = self.program_counter;
                 let val = self.read_u8_at(current_counter);
                 self.program_counter += 1;
                 Ok(val as u16)
             }
             AddressMode::AbsoluteX => {
-                if self.program_max_ptr <= self.program_counter + 1 {
-                    return Err(AddressComputationError::MemoryOverflow);
-                }
                 let current_counter = self.program_counter;
                 let val = self.read_u16_at(current_counter);
                 self.program_counter += 2;
                 Ok(val.wrapping_add(self.reg_x as u16))
             }
             AddressMode::AbsoluteY => {
-                if self.program_max_ptr <= self.program_counter + 1 {
-                    return Err(AddressComputationError::MemoryOverflow);
-                }
                 let current_counter = self.program_counter;
                 let val = self.read_u16_at(current_counter);
                 self.program_counter += 2;
                 Ok(val.wrapping_add(self.reg_y as u16))
             }
             AddressMode::ZeroPageX => {
-                if self.program_max_ptr <= self.program_counter {
-                    return Err(AddressComputationError::MemoryOverflow);
-                }
                 let current_counter = self.program_counter;
                 let val = self.read_u8_at(current_counter);
                 self.program_counter += 1;
                 Ok(val.wrapping_add(self.reg_x) as u16)
             }
             AddressMode::ZeroPageY => {
-                if self.program_max_ptr <= self.program_counter {
-                    return Err(AddressComputationError::MemoryOverflow);
-                }
                 let current_counter = self.program_counter;
                 let val = self.read_u8_at(current_counter);
                 self.program_counter += 1;
                 Ok(val.wrapping_add(self.reg_y) as u16)
             }
             AddressMode::IndirectZeroPageX => {
-                if self.program_max_ptr <= self.program_counter {
-                    return Err(AddressComputationError::MemoryOverflow);
-                }
                 let current_counter = self.program_counter;
                 let val = self.read_u8_at(current_counter);
                 self.program_counter += 1;
@@ -208,9 +178,6 @@ impl<'a> NesCpu<'a> {
                 Ok(self.read_u16_at(base_addr))
             }
             AddressMode::IndirectZeroPageY => {
-                if self.program_max_ptr <= self.program_counter {
-                    return Err(AddressComputationError::MemoryOverflow);
-                }
                 let current_counter = self.program_counter;
                 let val = self.read_u8_at(current_counter);
                 self.program_counter += 1;
@@ -218,9 +185,6 @@ impl<'a> NesCpu<'a> {
                 Ok(base_addr.wrapping_add(self.reg_y as u16))
             }
             AddressMode::Relative => {
-                if self.program_max_ptr <= self.program_counter {
-                    return Err(AddressComputationError::MemoryOverflow);
-                }
                 let current_counter = self.program_counter;
                 let val = self.read_u8_at(current_counter);
                 self.program_counter += 1;
@@ -232,9 +196,6 @@ impl<'a> NesCpu<'a> {
             }
 
             AddressMode::Indirect => {
-                if self.program_max_ptr <= self.program_counter + 1 {
-                    return Err(AddressComputationError::MemoryOverflow);
-                }
                 let current_counter = self.program_counter;
                 let val = self.read_u16_at(current_counter);
                 self.program_counter += 2;
@@ -928,6 +889,6 @@ mod test {
 #[derive(Debug, Clone)]
 pub(super) enum AddressComputationError {
     // TODO is there a default behavior like setting lo to `0` or something?
-    MemoryOverflow,
+    // MemoryOverflow,
     NoAddress,
 }

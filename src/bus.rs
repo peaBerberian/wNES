@@ -55,12 +55,6 @@ impl NesBus {
 
     pub(crate) fn read(&self, mut addr: u16) -> u8 {
         match addr {
-            MEMORY_START_ADDR ..= MEMORY_END_ADDR => {
-                // Only the 11 least significant bits of the 16 bits address
-                // is actually read on NES hardware.
-                let actual_mem_addr = addr & 0b00000111_11111111;
-                self.memory[actual_mem_addr as usize]
-            },
             PRG_ROM_START_ADDR ..= PRG_ROM_END_ADDR => {
                 addr -= 0x8000;
                 if self.prg_rom.len() <= 0x4000 && addr >= 0x4000 {
@@ -74,6 +68,12 @@ impl NesBus {
                 } else {
                     self.prg_rom[addr]
                 }
+            },
+            MEMORY_START_ADDR ..= MEMORY_END_ADDR => {
+                // Only the 11 least significant bits of the 16 bits address
+                // is actually read on NES hardware.
+                let actual_mem_addr = addr & 0b00000111_11111111;
+                self.memory[actual_mem_addr as usize]
             },
 
             // Not implemented yet
