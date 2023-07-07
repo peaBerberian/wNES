@@ -40,7 +40,7 @@ pub(super) fn run(
     let mut texture = creator
         .create_texture_target(PixelFormatEnum::RGB24, 32, 32).unwrap();
 
-    let mut frame_buff = [0 as u8; 32 * 3 * 32];
+    let mut frame_buff = [0u8; 32 * 3 * 32];
     use rand::Rng;
     let mut rng = rand::thread_rng();
 
@@ -52,7 +52,7 @@ pub(super) fn run(
             canvas.copy(&texture, None, None).unwrap();
             canvas.present();
         }
-        if cpu.next().unwrap() {
+        if cpu.next_op().unwrap() {
             return;
         }
         std::thread::sleep(std::time::Duration::new(0, 70_000));
@@ -101,7 +101,7 @@ fn update_frame_buffer(cpu: &NesCpu, frame_buff: &mut [u8; 32 * 3 * 32]) -> bool
    let mut frame_idx = 0;
    let mut update = false;
    for i in FRAME_BUFFER_START..FRAME_BUFFER_END {
-       let color_idx = cpu.read_u8_at(i as u16);
+       let color_idx = cpu.read_u8_at(i);
        let (b1, b2, b3) = byte_to_rgba(color_idx).rgb();
        if frame_buff[frame_idx] != b1 || frame_buff[frame_idx + 1] != b2 || frame_buff[frame_idx + 2] != b3 {
            frame_buff[frame_idx] = b1;

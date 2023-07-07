@@ -13,15 +13,15 @@ pub(super) struct CpuFlags {
 
 impl CpuFlags {
     pub(super) fn new() -> Self {
-        Self { flags: 0 }
+        Self { flags: 0b0010_0100 }
     }
 
     pub(super) fn reset(&mut self) {
-        self.flags = 0;
+        self.flags = 0b0010_0100;
     }
 
     pub(super) fn force(&mut self, byt: u8) {
-        self.flags = byt & 0b1100_0000;
+        self.flags = byt & 0b1110_1111;
     }
 
     pub(super) fn carry(&self) -> bool {
@@ -50,49 +50,49 @@ impl CpuFlags {
 
     pub(super) fn set_carry(&mut self, val: bool) {
         if val {
-            self.flags = self.flags | 0b0000_0001;
+            self.flags |= 0b0000_0001;
         } else {
-            self.flags = self.flags & 0b1111_1110;
+            self.flags &= 0b1111_1110;
         }
     }
 
     pub(super) fn set_zero(&mut self, val: bool) {
         if val {
-            self.flags = self.flags | 0b0000_0010;
+            self.flags |= 0b0000_0010;
         } else {
-            self.flags = self.flags & 0b1111_1101;
+            self.flags &= 0b1111_1101;
         }
     }
 
     pub(super) fn set_interrupt_disable(&mut self, val: bool) {
         if val {
-            self.flags = self.flags | 0b0000_0100;
+            self.flags |= 0b0000_0100;
         } else {
-            self.flags = self.flags & 0b1111_1011;
+            self.flags &= 0b1111_1011;
         }
     }
 
     pub(super) fn set_decimal(&mut self, val: bool) {
         if val {
-            self.flags = self.flags | 0b0000_1000;
+            self.flags |= 0b0000_1000;
         } else {
-            self.flags = self.flags & 0b1111_0111;
+            self.flags &= 0b1111_0111;
         }
     }
 
     pub(super) fn set_negative(&mut self, val: bool) {
         if val {
-            self.flags = self.flags | 0b1000_0000;
+            self.flags |= 0b1000_0000;
         } else {
-            self.flags = self.flags & 0b0111_1111;
+            self.flags &= 0b0111_1111;
         }
     }
 
     pub(super) fn set_overflow(&mut self, val: bool) {
         if val {
-            self.flags = self.flags | 0b0100_0000;
+            self.flags |= 0b0100_0000;
         } else {
-            self.flags = self.flags & 0b1011_1111;
+            self.flags &= 0b1011_1111;
         }
     }
 

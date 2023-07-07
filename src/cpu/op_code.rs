@@ -126,16 +126,16 @@ pub(super) fn parse(instr: u8) -> (Instruction, AddressMode) {
         // LDX
         0xA2 => (Instruction::LDX, AddressMode::Immediate),
         0xA6 => (Instruction::LDX, AddressMode::ZeroPage),
-        0xB6 => (Instruction::LDX, AddressMode::ZeroPageX),
+        0xB6 => (Instruction::LDX, AddressMode::ZeroPageY),
         0xAE => (Instruction::LDX, AddressMode::Absolute),
-        0xBE => (Instruction::LDX, AddressMode::AbsoluteX),
+        0xBE => (Instruction::LDX, AddressMode::AbsoluteY),
 
         // LDY
         0xA0 => (Instruction::LDY, AddressMode::Immediate),
         0xA4 => (Instruction::LDY, AddressMode::ZeroPage),
-        0xB4 => (Instruction::LDY, AddressMode::ZeroPageY),
+        0xB4 => (Instruction::LDY, AddressMode::ZeroPageX),
         0xAC => (Instruction::LDY, AddressMode::Absolute),
-        0xBC => (Instruction::LDY, AddressMode::AbsoluteY),
+        0xBC => (Instruction::LDY, AddressMode::AbsoluteX),
 
         // LSR
         0x4A => (Instruction::LSR, AddressMode::Accumulator),
@@ -228,6 +228,83 @@ pub(super) fn parse(instr: u8) -> (Instruction, AddressMode) {
         0x9A => (Instruction::TXS, AddressMode::Implied),
 
         0x98 => (Instruction::TYA, AddressMode::Implied),
+
+        // Unofficial ones
+
+        0xC7 => (Instruction::UDCP, AddressMode::ZeroPage),
+        0xD7 => (Instruction::UDCP, AddressMode::ZeroPageX),
+        0xCF => (Instruction::UDCP, AddressMode::Absolute),
+        0xDF => (Instruction::UDCP, AddressMode::AbsoluteX),
+        0xDB => (Instruction::UDCP, AddressMode::AbsoluteY),
+        0xC3 => (Instruction::UDCP, AddressMode::IndirectZeroPageX),
+        0xD3 => (Instruction::UDCP, AddressMode::IndirectZeroPageY),
+
+        0x27 => (Instruction::URLA, AddressMode::ZeroPage),
+        0x37 => (Instruction::URLA, AddressMode::ZeroPageX),
+        0x2F => (Instruction::URLA, AddressMode::Absolute),
+        0x3F => (Instruction::URLA, AddressMode::AbsoluteX),
+        0x3B => (Instruction::URLA, AddressMode::AbsoluteY),
+        0x23 => (Instruction::URLA, AddressMode::IndirectZeroPageX),
+        0x33 => (Instruction::URLA, AddressMode::IndirectZeroPageY),
+
+        0x07 => (Instruction::USLO, AddressMode::ZeroPage),
+        0x17 => (Instruction::USLO, AddressMode::ZeroPageX),
+        0x0F => (Instruction::USLO, AddressMode::Absolute),
+        0x1F => (Instruction::USLO, AddressMode::AbsoluteX),
+        0x1B => (Instruction::USLO, AddressMode::AbsoluteY),
+        0x03 => (Instruction::USLO, AddressMode::IndirectZeroPageX),
+        0x13 => (Instruction::USLO, AddressMode::IndirectZeroPageY),
+
+        0x47 => (Instruction::USRE, AddressMode::ZeroPage),
+        0x57 => (Instruction::USRE, AddressMode::ZeroPageX),
+        0x4F => (Instruction::USRE, AddressMode::Absolute),
+        0x5F => (Instruction::USRE, AddressMode::AbsoluteX),
+        0x5B => (Instruction::USRE, AddressMode::AbsoluteY),
+        0x43 => (Instruction::USRE, AddressMode::IndirectZeroPageX),
+        0x53 => (Instruction::USRE, AddressMode::IndirectZeroPageY),
+
+        // UNOP
+        0x1A => (Instruction::UNOP, AddressMode::Implied),
+        0x3A => (Instruction::UNOP, AddressMode::Implied),
+        0x5A => (Instruction::UNOP, AddressMode::Implied),
+        0x7A => (Instruction::UNOP, AddressMode::Implied),
+        0xDA => (Instruction::UNOP, AddressMode::Implied),
+        0xFA => (Instruction::UNOP, AddressMode::Implied),
+        0x80 => (Instruction::UNOP, AddressMode::Immediate),
+        0x82 => (Instruction::UNOP, AddressMode::Immediate),
+        0x89 => (Instruction::UNOP, AddressMode::Immediate),
+        0xC2 => (Instruction::UNOP, AddressMode::Immediate),
+        0xE2 => (Instruction::UNOP, AddressMode::Immediate),
+        0x04 => (Instruction::UNOP, AddressMode::ZeroPage),
+        0x44 => (Instruction::UNOP, AddressMode::ZeroPage),
+        0x64 => (Instruction::UNOP, AddressMode::ZeroPage),
+        0x14 => (Instruction::UNOP, AddressMode::ZeroPageX),
+        0x34 => (Instruction::UNOP, AddressMode::ZeroPageX),
+        0x54 => (Instruction::UNOP, AddressMode::ZeroPageX),
+        0x74 => (Instruction::UNOP, AddressMode::ZeroPageX),
+        0xD4 => (Instruction::UNOP, AddressMode::ZeroPageX),
+        0xF4 => (Instruction::UNOP, AddressMode::ZeroPageX),
+        0x0C => (Instruction::UNOP, AddressMode::Absolute),
+        0x1C => (Instruction::UNOP, AddressMode::AbsoluteX),
+        0x3C => (Instruction::UNOP, AddressMode::AbsoluteX),
+        0x5C => (Instruction::UNOP, AddressMode::AbsoluteX),
+        0x7C => (Instruction::UNOP, AddressMode::AbsoluteX),
+        0xDC => (Instruction::UNOP, AddressMode::AbsoluteX),
+        0xFC => (Instruction::UNOP, AddressMode::AbsoluteX),
+
+        0xA7 => (Instruction::ULAX, AddressMode::ZeroPage),
+        0xB7 => (Instruction::ULAX, AddressMode::ZeroPageY),
+        0xAF => (Instruction::ULAX, AddressMode::Absolute),
+        0xBF => (Instruction::ULAX, AddressMode::AbsoluteY),
+        0xA3 => (Instruction::ULAX, AddressMode::IndirectZeroPageX),
+        0xB3 => (Instruction::ULAX, AddressMode::IndirectZeroPageY),
+
+        0x87 => (Instruction::USAX, AddressMode::ZeroPage),
+        0x97 => (Instruction::USAX, AddressMode::ZeroPageY),
+        0x8f => (Instruction::USAX, AddressMode::Absolute),
+        0x83 => (Instruction::USAX, AddressMode::IndirectZeroPageX),
+
+        0xEB => (Instruction::USBC, AddressMode::Immediate),
 
         _ => (Instruction::Unknown, AddressMode::Unknown),
     }
@@ -335,6 +412,7 @@ pub(super) enum AddressMode {
     Indirect,
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Debug)]
 pub(super) enum Instruction {
     /// Unrecognized instruction
@@ -451,4 +529,28 @@ pub(super) enum Instruction {
     TXS,
     /// transfer Y to accumulator
     TYA,
+
+    /// Subtract 1 from memory (without borrow).
+    UDCP,
+
+    /// Rotate one bit left in memory, then AND accumulator with memory
+    URLA,
+
+    /// Shift left one bit in memory, then OR accumulator with memory.
+    USLO,
+
+    /// Shift right one bit in memory, then EOR accumulator with memory.
+    USRE,
+
+    /// Unofficial NOPs which might fetch
+    UNOP,
+
+    /// Unofficial LDA + TAX
+    ULAX,
+
+    /// Unofficial AND X register with accumulator and store result in memory.
+    USAX,
+
+    /// Same as SBC
+    USBC,
 }
