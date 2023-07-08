@@ -84,9 +84,9 @@ impl<'a> NesCpu<'a> {
             );
         }
         let op_code = self.bus.read(self.program_counter);
-        let (instr, mode) = op_code::parse(op_code);
+        let parsed_op = op_code::parse(op_code);
         self.program_counter += 1;
-        match (instr, mode) {
+        match (parsed_op.instr(), parsed_op.mode()) {
             (Instruction::ADC, mode) => {
                 let val = self.operand_value(mode)?;
                 self.exec_adc(val);

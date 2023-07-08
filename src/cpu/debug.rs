@@ -7,9 +7,9 @@ pub(super) fn format_instr(
     reg_y: u8,
 ) -> (String, String) {
     let op_code = bus.read(offset);
-    let (_, mode) = op_code::parse(op_code);
+    let parsed_op = op_code::parse(op_code);
     let mnemon = get_mnemonic(op_code).unwrap_or(" ???");
-    let (operand_hex, operand_value) = match mode {
+    let (operand_hex, operand_value) = match parsed_op.mode() {
         AddressMode::Immediate => {
             let val = bus.read(offset + 1);
             (format!("{:02X}", val), format!("#${:02X?}", val))
@@ -89,7 +89,7 @@ pub(super) fn format_instr(
         // JMP and JSR are not resolved as the operand is just the address jumped to
         None
     } else {
-        fmt_resolved_operand(mode, bus, offset + 1, reg_x, reg_y)
+        fmt_resolved_operand(parsed_op.mode(), bus, offset + 1, reg_x, reg_y)
     };
 
     let instruction_hex = format!("{:02X} {:05}", op_code, operand_hex);
