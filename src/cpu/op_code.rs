@@ -9,7 +9,7 @@ pub(super) struct OpCode {
 impl OpCode {
     fn new(instr: Instruction, mode: AddressMode) -> Self {
         let mut page_crossing_cycle = false;
-        let mut nb_cycles = match instr {
+        let nb_cycles = match instr {
             Instruction::BRK => 7,
             Instruction::JMP => {
                 if mode == AddressMode::Indirect {

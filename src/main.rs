@@ -1,9 +1,10 @@
 mod bus;
 mod cpu;
+mod ppu;
 mod native_ui;
+mod rom;
 
 fn main() {
-    let mut bus = bus::NesBus::new();
     let rom = match std::fs::read("./ROM.nes") {
         Ok(rom) => rom,
         Err(e) => {
@@ -11,10 +12,14 @@ fn main() {
             return;
         },
     };
-    if let Err(e) = bus.load_rom(rom) {
-        eprintln!("Could not read loaded ROM {:?}", e);
-        return;
-    }
+    let parsed = match rom::Rom::from_ines_file(rom) {
+        Err(e) => {
+            eprintln!("Could not read loaded ROM {:?}", e);
+            return;
+        },
+        Ok(parsed) => parsed,
+    };
+    let mut bus = bus::NesBus::new(&parsed);
     let mut cpu = cpu::NesCpu::new(&mut bus);
     native_ui::run(&mut cpu);
 }

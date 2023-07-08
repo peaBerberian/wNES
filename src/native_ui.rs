@@ -4,7 +4,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 
-use super::cpu::NesCpu;
+use super::cpu::{NesCpu, CpuComputationResult};
 
 /// This implementation rely on a frame_buffer mapped to specific address starting from
 /// `FRAME_BUFFER_START` (top left) to `FRAME_BUFFER_END` (bottom right). Each location
@@ -52,8 +52,12 @@ pub(super) fn run(
             canvas.copy(&texture, None, None).unwrap();
             canvas.present();
         }
-        if cpu.next_op().unwrap() {
-            return;
+        match cpu.next_op() {
+            Err(e) => panic!("{:?}", e),
+            Ok(CpuComputationResult { brk: true, .. }) => {
+                return;
+            },
+            _ => {},
         }
         std::thread::sleep(std::time::Duration::new(0, 70_000));
     }
@@ -97,7 +101,7 @@ fn byte_to_rgba(byte: u8) -> Color {
 }
 
 
-fn update_frame_buffer(cpu: &NesCpu, frame_buff: &mut [u8; 32 * 3 * 32]) -> bool {
+fn update_frame_buffer(cpu: &mut NesCpu, frame_buff: &mut [u8; 32 * 3 * 32]) -> bool {
    let mut frame_idx = 0;
    let mut update = false;
    for i in FRAME_BUFFER_START..FRAME_BUFFER_END {

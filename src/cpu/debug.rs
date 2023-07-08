@@ -1,7 +1,7 @@
 use super::op_code::{self, AddressMode};
 
 pub(super) fn format_instr(
-    bus: &super::NesBus,
+    bus: &mut super::NesBus,
     offset: u16,
     reg_x: u8,
     reg_y: u8,
@@ -184,7 +184,7 @@ fn get_mnemonic(instr: u8) -> Option<&'static str> {
 
 fn fmt_resolved_operand(
     mode: AddressMode,
-    bus: &super::NesBus,
+    bus: &mut super::NesBus,
     offset: u16,
     reg_x: u8,
     reg_y: u8,
@@ -275,7 +275,7 @@ fn fmt_resolved_operand(
     }
 }
 
-fn read_u16_at(bus: &super::NesBus, addr: u16) -> u16 {
+fn read_u16_at(bus: &mut super::NesBus, addr: u16) -> u16 {
     if addr == 0xFFFF {
         // TODO check what should be done
         u16::from(bus.read(0xFFFF)) << 8

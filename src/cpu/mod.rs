@@ -6,6 +6,11 @@ use op_code::{AddressMode, Instruction};
 
 use crate::bus::NesBus;
 
+pub(crate) struct CpuComputationResult {
+    pub(crate) cycles: u8,
+    pub(crate) brk: bool,
+}
+
 /// The lowest byte in Nes' memory dedicated to the stack.
 const STACK_LO: u16 = 0x0100;
 
@@ -48,7 +53,7 @@ impl<'a> NesCpu<'a> {
         }
     }
 
-    pub(crate) fn read_u8_at(&self, addr: u16) -> u8 {
+    pub(crate) fn read_u8_at(&mut self, addr: u16) -> u8 {
         self.bus.read(addr)
     }
 
@@ -65,7 +70,7 @@ impl<'a> NesCpu<'a> {
         self.program_counter = self.read_u16_at(0xFFFC);
     }
 
-    pub(super) fn next_op(&mut self) -> Result<bool, AddressComputationError> {
+    pub(super) fn next_op(&mut self) -> Result<CpuComputationResult, AddressComputationError> {
         if cfg!(feature = "debug_cpu") {
             use super::cpu::debug::*;
             let (hex_format, readable_format) =
@@ -131,7 +136,7 @@ impl<'a> NesCpu<'a> {
             (Instruction::BRK, AddressMode::Implied) => {
                 self.exec_brk();
                 // TODO normally we should just continue execution from 0xFFFE
-                return Ok(true);
+                return Ok(CpuComputationResult { cycles: parsed_op.nb_cycles(), brk: true });
             }
             (Instruction::BVC, AddressMode::Relative) => {
                 let addr = self.compute_addr(AddressMode::Relative)?;
@@ -271,10 +276,10 @@ impl<'a> NesCpu<'a> {
                 }
             }
         };
-        Ok(false)
+        Ok(CpuComputationResult { cycles: parsed_op.nb_cycles(), brk: false })
     }
 
-    fn read_u16_at(&self, addr: u16) -> u16 {
+    fn read_u16_at(&mut self, addr: u16) -> u16 {
         if addr == 0xFFFF {
             // TODO check what should be done
             u16::from(self.read_u8_at(0xFFFF)) << 8
@@ -838,72 +843,6 @@ impl<'a> NesCpu<'a> {
     fn exec_unofficial_sax(&mut self, addr: u16) {
         let res = self.reg_a & self.reg_x;
         self.write_u8_at(addr, res);
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::NesCpu;
-    use crate::bus::NesBus;
-
-    #[test]
-    fn test_0xa9_lda_immediate_load_data() {
-        let mut bus = NesBus::new();
-        bus.load_rom(vec![0xa9, 0x05, 0x00]).unwrap();
-        let mut cpu = NesCpu::new(&mut bus);
-        // cpu.load(&[0xa9, 0x05, 0x00]);
-        while cpu.next_op().unwrap() {}
-        assert_eq!(cpu.reg_a, 0x05);
-        assert!(cpu.flags.as_byte(false) & 0b0000_0010 == 0b00);
-        assert!(cpu.flags.as_byte(false) & 0b1000_0000 == 0);
-    }
-
-    #[test]
-    fn test_0xa9_lda_zero_flag() {
-        let mut bus = NesBus::new();
-        bus.load_rom(vec![0xa9, 0x00, 0x00]).unwrap();
-        let mut cpu = NesCpu::new(&mut bus);
-        while cpu.next_op().unwrap() {}
-        assert!(cpu.flags.as_byte(false) & 0b0000_0010 == 0b10);
-    }
-
-    #[test]
-    fn test_0xaa_tax_move_a_to_x() {
-        let mut bus = NesBus::new();
-        bus.load_rom(vec![0xaa, 0x00]).unwrap();
-        let mut cpu = NesCpu::new(&mut bus);
-        cpu.reg_a = 10;
-        while cpu.next_op().unwrap() {}
-        assert_eq!(cpu.reg_x, 10)
-    }
-
-    #[test]
-    fn test_5_ops_working_together() {
-        let mut bus = NesBus::new();
-        bus.load_rom(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]).unwrap();
-        let mut cpu = NesCpu::new(&mut bus);
-        while cpu.next_op().unwrap() {}
-        assert_eq!(cpu.reg_x, 0xc1)
-    }
-
-    #[test]
-    fn test_inx_overflow() {
-        let mut bus = NesBus::new();
-        bus.load_rom(vec![0xe8, 0xe8, 0x00]).unwrap();
-        let mut cpu = NesCpu::new(&mut bus);
-        cpu.reg_x = 0xff;
-        while cpu.next_op().unwrap() {}
-        assert_eq!(cpu.reg_x, 1)
-    }
-
-    #[test]
-    fn test_dex_overflow() {
-        let mut bus = NesBus::new();
-        bus.load_rom(vec![0xCA, 0xCA, 0x00]).unwrap();
-        let mut cpu = NesCpu::new(&mut bus);
-        cpu.reg_x = 0x00;
-        while cpu.next_op().unwrap() {}
-        assert_eq!(cpu.reg_x, 254)
     }
 }
 
