@@ -62,7 +62,7 @@ impl<'a> NesCpu<'a> {
         self.bus.write(addr, val);
     }
 
-    pub(super) fn next_op(&mut self) -> Result<CpuComputationResult, AddressComputationError> {
+    pub(super) fn next_op(&mut self) -> CpuComputationResult {
         if self.bus.should_handle_nmi_interrupt() {
             self.on_nmi_interrupt();
         }
@@ -90,57 +90,57 @@ impl<'a> NesCpu<'a> {
 
         match (parsed_op.instr(), parsed_op.mode()) {
             (Instruction::ADC, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_adc(val);
             }
             (Instruction::AND, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_and(val);
             }
             (Instruction::ASL, AddressMode::Accumulator) => self.exec_asl_acc(),
             (Instruction::ASL, _) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_asl_mem(addr);
             }
             (Instruction::BCC, AddressMode::Relative) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_bcc(addr);
             }
             (Instruction::BCS, AddressMode::Relative) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_bcs(addr);
             }
             (Instruction::BEQ, AddressMode::Relative) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_beq(addr);
             }
             (Instruction::BIT, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_bit(val);
             }
             (Instruction::BMI, AddressMode::Relative) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_bmi(addr);
             }
             (Instruction::BNE, AddressMode::Relative) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_bne(addr);
             }
             (Instruction::BPL, AddressMode::Relative) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_bpl(addr);
             }
             (Instruction::BRK, AddressMode::Implied) => {
                 self.on_brk_interrupt();
                 // TODO normally we should just continue execution from 0xFFFE
-                return Ok(CpuComputationResult { brk: true });
+                return CpuComputationResult { brk: true };
             }
             (Instruction::BVC, AddressMode::Relative) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_bvc(addr);
             }
             (Instruction::BVS, AddressMode::Relative) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_bvs(addr);
             }
             (Instruction::CLC, AddressMode::Implied) => self.exec_clc(),
@@ -148,61 +148,61 @@ impl<'a> NesCpu<'a> {
             (Instruction::CLI, AddressMode::Implied) => self.exec_cli(),
             (Instruction::CLV, AddressMode::Implied) => self.exec_clv(),
             (Instruction::CMP, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_cmp(val);
             }
             (Instruction::CPX, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_cpx(val);
             }
             (Instruction::CPY, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_cpy(val);
             }
             (Instruction::DEC, _) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_dec(addr);
             }
             (Instruction::DEX, AddressMode::Implied) => self.exec_dex(),
             (Instruction::DEY, AddressMode::Implied) => self.exec_dey(),
             (Instruction::EOR, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_eor(val);
             }
             (Instruction::INC, _) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_inc(addr);
             }
             (Instruction::INX, AddressMode::Implied) => self.exec_inx(),
             (Instruction::INY, AddressMode::Implied) => self.exec_iny(),
             (Instruction::JMP, _) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_jmp(addr);
             }
             (Instruction::JSR, _) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_jsr(addr);
             }
             (Instruction::LDA, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_lda(val);
             }
             (Instruction::LDX, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_ldx(val);
             }
             (Instruction::LDY, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_ldy(val);
             }
             (Instruction::LSR, AddressMode::Accumulator) => self.exec_lsr_acc(),
             (Instruction::LSR, _) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_lsr_mem(addr);
             }
             (Instruction::NOP, AddressMode::Implied) => {}
             (Instruction::ORA, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_ora(val);
             }
             (Instruction::PHA, AddressMode::Implied) => self.exec_pha(),
@@ -211,33 +211,33 @@ impl<'a> NesCpu<'a> {
             (Instruction::PLP, AddressMode::Implied) => self.exec_plp(),
             (Instruction::ROL, AddressMode::Accumulator) => self.exec_rol_acc(),
             (Instruction::ROL, _) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_rol_mem(addr);
             }
             (Instruction::ROR, AddressMode::Accumulator) => self.exec_ror_acc(),
             (Instruction::ROR, _) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_ror_mem(addr);
             }
             (Instruction::RTI, AddressMode::Implied) => self.exec_rti(),
             (Instruction::RTS, AddressMode::Implied) => self.exec_rts(),
             (Instruction::SBC, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_sbc(val);
             }
             (Instruction::SEC, AddressMode::Implied) => self.exec_sec(),
             (Instruction::SED, AddressMode::Implied) => self.exec_sed(),
             (Instruction::SEI, AddressMode::Implied) => self.exec_sei(),
             (Instruction::STA, _) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_sta(addr);
             }
             (Instruction::STX, _) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_stx(addr);
             }
             (Instruction::STY, _) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_sty(addr);
             }
             (Instruction::TAX, AddressMode::Implied) => self.exec_tax(),
@@ -248,23 +248,23 @@ impl<'a> NesCpu<'a> {
             (Instruction::TYA, AddressMode::Implied) => self.exec_tya(),
 
             (Instruction::UDCP, _) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_unofficial_dcp(addr);
             }
             (Instruction::ULAX, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_unofficial_lax(val);
             }
             (Instruction::UNOP, AddressMode::Implied) => {}
             (Instruction::UNOP, _) => {
-                let _ = self.compute_addr(&parsed_op)?;
+                let _ = self.compute_addr(&parsed_op).unwrap();
             }
             (Instruction::USAX, _) => {
-                let addr = self.compute_addr(&parsed_op)?;
+                let addr = self.compute_addr(&parsed_op).unwrap();
                 self.exec_unofficial_sax(addr);
             }
             (Instruction::USBC, _) => {
-                let val = self.operand_value(&parsed_op)?;
+                let val = self.operand_value(&parsed_op).unwrap();
                 self.exec_sbc(val);
             }
             _ => {
@@ -276,16 +276,11 @@ impl<'a> NesCpu<'a> {
 
         let cycles = parsed_op.nb_cycles();
         self.bus.tick(cycles);
-        Ok(CpuComputationResult { brk: false })
+        CpuComputationResult { brk: false }
     }
 
     fn read_u16_at(&mut self, addr: u16) -> u16 {
-        if addr == 0xFFFF {
-            // TODO check what should be done
-            u16::from(self.read_u8_at(0xFFFF)) << 8
-        } else {
-            u16::from(self.read_u8_at(addr)) | u16::from(self.read_u8_at(addr + 1)) << 8
-        }
+        u16::from(self.read_u8_at(addr)) | u16::from(self.read_u8_at(addr + 1)) << 8
     }
 
     fn push_stack_u8(&mut self, val: u8) {
@@ -320,28 +315,28 @@ impl<'a> NesCpu<'a> {
     fn compute_addr(
         &mut self,
         op_code: &OpCode
-    ) -> Result<u16, AddressComputationError> {
+    ) -> Option<u16> {
         match op_code.mode() {
             AddressMode::Immediate => {
                 let pc = self.program_counter;
                 self.program_counter += 1;
 
                 // Give directly address of ROM value
-                Ok(pc)
+                Some(pc)
             }
             AddressMode::Absolute => {
                 let val = self.read_u16_at(self.program_counter);
                 self.program_counter += 2;
-                Ok(val)
+                Some(val)
             }
-            AddressMode::Unknown => Err(AddressComputationError::NoAddress),
-            AddressMode::Accumulator => Err(AddressComputationError::NoAddress),
-            AddressMode::Implied => Err(AddressComputationError::NoAddress),
+            AddressMode::Unknown => None,
+            AddressMode::Accumulator => None,
+            AddressMode::Implied => None,
             AddressMode::ZeroPage => {
                 let current_counter = self.program_counter;
                 let val = self.read_u8_at(current_counter);
                 self.program_counter += 1;
-                Ok(val as u16)
+                Some(val as u16)
             }
             AddressMode::AbsoluteX => {
                 let current_counter = self.program_counter;
@@ -351,7 +346,7 @@ impl<'a> NesCpu<'a> {
                 if op_code.page_crossing_cycle() && is_page_crossed(val, addr) {
                     self.bus.tick(1);
                 }
-                Ok(addr)
+                Some(addr)
             }
             AddressMode::AbsoluteY => {
                 let current_counter = self.program_counter;
@@ -361,19 +356,19 @@ impl<'a> NesCpu<'a> {
                 if op_code.page_crossing_cycle() && is_page_crossed(val, addr) {
                     self.bus.tick(1);
                 }
-                Ok(addr)
+                Some(addr)
             }
             AddressMode::ZeroPageX => {
                 let current_counter = self.program_counter;
                 let val = self.read_u8_at(current_counter);
                 self.program_counter += 1;
-                Ok(val.wrapping_add(self.reg_x) as u16)
+                Some(val.wrapping_add(self.reg_x) as u16)
             }
             AddressMode::ZeroPageY => {
                 let current_counter = self.program_counter;
                 let val = self.read_u8_at(current_counter);
                 self.program_counter += 1;
-                Ok(val.wrapping_add(self.reg_y) as u16)
+                Some(val.wrapping_add(self.reg_y) as u16)
             }
             AddressMode::IndirectZeroPageX => {
                 let current_counter = self.program_counter;
@@ -382,7 +377,7 @@ impl<'a> NesCpu<'a> {
                 let base_addr = val.wrapping_add(self.reg_x);
                 let mem = u16::from(self.read_u8_at(base_addr as u16))
                     | u16::from(self.read_u8_at(base_addr.wrapping_add(1) as u16)) << 8;
-                Ok(mem)
+                Some(mem)
             }
             AddressMode::IndirectZeroPageY => {
                 let current_counter = self.program_counter;
@@ -394,16 +389,16 @@ impl<'a> NesCpu<'a> {
                 if op_code.page_crossing_cycle() && is_page_crossed(base_addr, addr) {
                     self.bus.tick(1);
                 }
-                Ok(addr)
+                Some(addr)
             }
             AddressMode::Relative => {
                 let current_counter = self.program_counter;
                 let val = self.read_u8_at(current_counter);
                 self.program_counter += 1;
                 if val <= 127 {
-                    Ok(self.program_counter + val as u16)
+                    Some(self.program_counter + val as u16)
                 } else {
-                    Ok(self.program_counter - ((val ^ 0xFF) + 1) as u16)
+                    Some(self.program_counter - ((val ^ 0xFF) + 1) as u16)
                 }
             }
 
@@ -419,10 +414,10 @@ impl<'a> NesCpu<'a> {
                 if val & 0x00FF == 0x00FF {
                     let lo = self.read_u8_at(val);
                     let hi = self.read_u8_at(val & 0xFF00);
-                    Ok((hi as u16) << 8 | (lo as u16))
+                    Some((hi as u16) << 8 | (lo as u16))
                 } else {
                     let addr = self.read_u16_at(val);
-                    Ok(addr)
+                    Some(addr)
                 }
             }
         }
@@ -431,9 +426,9 @@ impl<'a> NesCpu<'a> {
     fn operand_value(
         &mut self,
         op_code: &OpCode
-    ) -> Result<u8, AddressComputationError> {
+    ) -> Option<u8> {
         let addr_ope = self.compute_addr(op_code)?;
-        Ok(self.read_u8_at(addr_ope))
+        Some(self.read_u8_at(addr_ope))
     }
 
     fn set_zero_and_negative_flags(&mut self, val: u8) {
@@ -444,7 +439,6 @@ impl<'a> NesCpu<'a> {
     // Instructions
 
     fn exec_adc(&mut self, val: u8) {
-        // println!("CPU: Add with carry (a: {}, val: {})", self.reg_a, val);
         let res = u16::from(self.reg_a) + u16::from(val) + if self.flags.carry() { 1 } else { 0 };
         self.flags.set_carry(res > 0b1111_1111);
 
@@ -458,7 +452,6 @@ impl<'a> NesCpu<'a> {
     }
 
     fn exec_and(&mut self, val: u8) {
-        // println!("CPU: Logical AND (a: {}, val: {}, res: {})", self.reg_a, val, self.reg_a & val);
         self.reg_a &= val;
         self.set_zero_and_negative_flags(self.reg_a);
     }
@@ -518,27 +511,22 @@ impl<'a> NesCpu<'a> {
     }
 
     fn exec_clc(&mut self) {
-        // println!("CPU: Clear Carry Flag");
         self.flags.set_carry(false);
     }
 
     fn exec_cld(&mut self) {
-        // println!("CPU: Clear Decimal Mode");
         self.flags.set_decimal(false);
     }
 
     fn exec_cli(&mut self) {
-        // println!("CPU: Clear Interrupt Disable");
         self.flags.set_interrupt_disable(false);
     }
 
     fn exec_clv(&mut self) {
-        // println!("CPU: Clear Overflow Flag");
         self.flags.set_overflow(false);
     }
 
     fn exec_cmp(&mut self, val: u8) {
-        // println!("CPU: Compare (a: {}, val: {})", self.reg_a, val);
         self.flags.set_carry(self.reg_a >= val);
         self.flags.set_zero(self.reg_a == val);
         self.flags
@@ -546,7 +534,6 @@ impl<'a> NesCpu<'a> {
     }
 
     fn exec_cpx(&mut self, val: u8) {
-        // println!("CPU: Compare X Register (x: {}, val: {})", self.reg_x, val);
         self.flags.set_carry(self.reg_x >= val);
         self.flags.set_zero(self.reg_x == val);
         self.flags
@@ -554,7 +541,6 @@ impl<'a> NesCpu<'a> {
     }
 
     fn exec_cpy(&mut self, val: u8) {
-        // println!("CPU: Compare Y Register (y: {}, val: {})", self.reg_y, val);
         self.flags.set_carry(self.reg_y >= val);
         self.flags.set_zero(self.reg_y == val);
         self.flags
@@ -569,13 +555,11 @@ impl<'a> NesCpu<'a> {
     }
 
     fn exec_dex(&mut self) {
-        // println!("CPU: Decrement X Register (x: {}, res: {})", self.reg_x, self.reg_x.wrapping_sub(1));
         self.reg_x = self.reg_x.wrapping_sub(1);
         self.set_zero_and_negative_flags(self.reg_x);
     }
 
     fn exec_dey(&mut self) {
-        // println!("CPU: Decrement Y Register (y: {}, res: {})", self.reg_y, self.reg_y.wrapping_sub(1));
         self.reg_y = self.reg_y.wrapping_sub(1);
         self.set_zero_and_negative_flags(self.reg_y);
     }
@@ -593,48 +577,36 @@ impl<'a> NesCpu<'a> {
     }
 
     fn exec_inx(&mut self) {
-        // println!("CPU: Increment X Register (x: {}, res: {})", self.reg_x, self.reg_x.wrapping_add(1));
         self.reg_x = self.reg_x.wrapping_add(1);
         self.set_zero_and_negative_flags(self.reg_x);
     }
 
     fn exec_iny(&mut self) {
-        // println!("CPU: Increment Y Register (x: {}, res: {})", self.reg_y, self.reg_y.wrapping_add(1));
         self.reg_y = self.reg_y.wrapping_add(1);
         self.set_zero_and_negative_flags(self.reg_y);
     }
 
     fn exec_jmp(&mut self, addr: u16) {
-        // println!("CPU: Jump (addr: {addr}");
         self.program_counter = addr;
     }
 
     fn exec_jsr(&mut self, addr: u16) {
-        // println!(
-        //     "CPU: Jump to Subroutine (saved: {}, new: {})",
-        //     self.program_counter - 1,
-        //     addr
-        // );
-
         // JSR pushes the address-1 of the next operation on to the stack
         self.push_stack_u16(self.program_counter - 1);
         self.program_counter = addr;
     }
 
     fn exec_lda(&mut self, val: u8) {
-        // println!("CPU: Load Accumulator (val: {val})");
         self.reg_a = val;
         self.set_zero_and_negative_flags(val);
     }
 
     fn exec_ldx(&mut self, val: u8) {
-        // println!("CPU: Load X Register (val: {val})");
         self.reg_x = val;
         self.set_zero_and_negative_flags(val);
     }
 
     fn exec_ldy(&mut self, val: u8) {
-        // println!("CPU: Load Y Register (val: {val})");
         self.reg_y = val;
         self.set_zero_and_negative_flags(val);
     }
@@ -729,10 +701,6 @@ impl<'a> NesCpu<'a> {
 
     fn exec_rts(&mut self) {
         let popped = self.pop_stack_u16();
-        // println!(
-        //     "CPU: Return to Subroutine (addr: {})",
-        //     popped + 1
-        // );
         self.program_counter = popped + 1;
     }
 
@@ -756,66 +724,54 @@ impl<'a> NesCpu<'a> {
     }
 
     fn exec_sec(&mut self) {
-        // println!("CPU: Set Carry Flag");
         self.flags.set_carry(true);
     }
 
     fn exec_sed(&mut self) {
-        // println!("CPU: Set Decimal Flag");
         self.flags.set_decimal(true);
     }
 
     fn exec_sei(&mut self) {
-        // println!("CPU: Set Interrupt Disable");
         self.flags.set_interrupt_disable(true);
     }
 
     fn exec_sta(&mut self, addr: u16) {
-        // println!("CPU: Store Accumulator (addr: {addr})");
         self.write_u8_at(addr, self.reg_a);
     }
 
     fn exec_stx(&mut self, addr: u16) {
-        // println!("CPU: Store X Register (x: {}, addr: {addr})", self.reg_x);
         self.write_u8_at(addr, self.reg_x);
     }
 
     fn exec_sty(&mut self, addr: u16) {
-        // println!("CPU: Store Y Register (x: {}, addr: {addr})", self.reg_x);
         self.write_u8_at(addr, self.reg_y);
     }
 
     fn exec_tax(&mut self) {
-        // println!("CPU: Transfer Accumulator to X (a: {})", self.reg_a);
         self.reg_x = self.reg_a;
         self.set_zero_and_negative_flags(self.reg_a)
     }
 
     fn exec_tay(&mut self) {
-        // println!("CPU: Transfer Accumulator to Y (a: {})", self.reg_a);
         self.reg_y = self.reg_a;
         self.set_zero_and_negative_flags(self.reg_a)
     }
 
     fn exec_tsx(&mut self) {
-        // println!("CPU: Transfer Stack Pointer to X (s: {})", self.stack_pointer);
         self.reg_x = self.stack_pointer;
         self.set_zero_and_negative_flags(self.reg_x)
     }
 
     fn exec_txa(&mut self) {
-        // println!("CPU: Transfer X to Accumulator (x: {})", self.reg_x);
         self.reg_a = self.reg_x;
         self.set_zero_and_negative_flags(self.reg_a)
     }
 
     fn exec_txs(&mut self) {
-        // println!("CPU: Transfer X to Stack Pointer (x: {})", self.reg_x);
         self.stack_pointer = self.reg_x;
     }
 
     fn exec_tya(&mut self) {
-        // println!("CPU: Transfer Y to Accumulator (y: {})", self.reg_x);
         self.reg_a = self.reg_y;
         self.set_zero_and_negative_flags(self.reg_a)
     }
@@ -872,13 +828,6 @@ impl<'a> NesCpu<'a> {
         self.bus.tick(1);
         self.program_counter = self.read_u16_at(0xFFFE);
     }
-}
-
-#[derive(Debug, Clone)]
-pub(super) enum AddressComputationError {
-    // TODO is there a default behavior like setting lo to `0` or something?
-    // MemoryOverflow,
-    NoAddress,
 }
 
 fn is_page_crossed(addr1: u16, addr2: u16) -> bool {

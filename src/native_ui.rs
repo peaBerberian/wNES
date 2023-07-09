@@ -57,8 +57,7 @@ pub(super) fn run(
             canvas.present();
         }
         match cpu.next_op() {
-            Err(e) => panic!("{:?}", e),
-            Ok(CpuComputationResult { brk: true, .. }) => {
+            CpuComputationResult { brk: true, .. } => {
                 return;
             },
             _ => {},
