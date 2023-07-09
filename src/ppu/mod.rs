@@ -6,27 +6,6 @@ use registers::{
     PpuAddrRegister, PpuCtrlRegister, PpuMaskRegister, PpuScrollRegister, PpuStatusRegister,
 };
 
-pub(super) struct NesPpu {
-    chr_rom: Vec<u8>,
-    mirroring: Mirroring,
-    cycles: usize,
-    curr_scanline: usize,
-
-    // TODO
-    last_read: u8,
-
-    vram: [u8; 2048],
-    oam_addr: u8,
-    oam: [u8; 256],
-    palette: [u8; 32],
-
-    reg_ctrl: PpuCtrlRegister,
-    reg_mask: PpuMaskRegister,
-    reg_status: PpuStatusRegister,
-    reg_scroll: PpuScrollRegister,
-    reg_addr: PpuAddrRegister,
-}
-
 /// $0000-$0FFF 	$1000 	Pattern table 0
 /// $1000-$1FFF 	$1000 	Pattern table 1
 /// $2000-$23FF 	$0400 	Nametable 0
@@ -43,35 +22,76 @@ const PALETTE_RAM_END: u16 = 0x03FFF;
 const NAME_TABLE_START: u16 = 0x2000;
 const NAME_TABLE_END: u16 = 0x2FFF;
 
+pub(crate) struct NesPpu {
+    chr_rom: Vec<u8>,
+    mirroring: Mirroring,
+    cycles: u32,
+    curr_scanline: usize,
+
+    palette: [u8; 32],
+
+    // TODO
+    prev_read_value: u8,
+
+    vram: [u8; 2048],
+    /// OAM address port
+    /// https://www.nesdev.org/wiki/PPU_registers#OAM_address_($2003)_%3E_write
+    oam_address: u8,
+
+    /// OAM data port
+    /// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
+    oam_data: [u8; 256],
+
+    /// PPU control register
+    /// https://www.nesdev.org/wiki/PPU_registers#Controller_($2000)_%3E_write
+    reg_ctrl: PpuCtrlRegister,
+
+    /// PPU mask register
+    /// https://www.nesdev.org/wiki/PPU_registers#Mask_($2001)_%3E_write
+    reg_mask: PpuMaskRegister,
+
+    /// PPU status register
+    /// https://www.nesdev.org/wiki/PPU_registers#Status_($2002)_%3C_read
+    reg_status: PpuStatusRegister,
+
+    /// PPU scrolling position register
+    /// https://www.nesdev.org/wiki/PPU_registers#Scroll_($2005)_%3E%3E_write_x2
+    reg_scroll: PpuScrollRegister,
+
+    /// PPU address register
+    /// https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
+    reg_addr: PpuAddrRegister,
+}
+
 impl NesPpu {
-    pub(super) fn new(chr_rom: Vec<u8>, mirroring: Mirroring) -> Self {
+    pub(crate) fn new(chr_rom: Vec<u8>, mirroring: Mirroring) -> Self {
         Self {
             chr_rom,
-            mirroring,
-            oam_addr: 0,
-            oam: [0; 64 * 4],
-            palette: [0; 32],
-            vram: [0; 2048],
-            cycles: 0,
             curr_scanline: 0,
+            cycles: 0,
+            mirroring,
+            oam_address: 0,
+            oam_data: [0; 64 * 4],
+            palette: [0; 32],
+            prev_read_value: 0,
+            vram: [0; 2048],
             reg_addr: PpuAddrRegister::new(),
-            last_read: 0,
             reg_ctrl: PpuCtrlRegister::new(),
             reg_mask: PpuMaskRegister::new(),
-            reg_status: PpuStatusRegister::new(),
             reg_scroll: PpuScrollRegister::new(),
+            reg_status: PpuStatusRegister::new(),
         }
     }
 
-    pub(super) fn write_ctrl(&mut self, value: u8) {
+    pub(crate) fn write_ctrl(&mut self, value: u8) {
         self.reg_ctrl.write(value);
     }
 
-    pub(super) fn write_mask(&mut self, value: u8) {
+    pub(crate) fn write_mask(&mut self, value: u8) {
         self.reg_mask.write(value);
     }
 
-    pub(super) fn read_status(&mut self) -> u8 {
+    pub(crate) fn read_status(&mut self) -> u8 {
         let val = self.reg_status.read();
         self.reg_status.set_in_vblank(false);
         self.reg_addr.reset_address_latch();
@@ -79,28 +99,28 @@ impl NesPpu {
         val
     }
 
-    pub(super) fn write_oam_address(&mut self, value: u8) {
-        self.oam_addr = value;
+    pub(crate) fn write_oam_address(&mut self, value: u8) {
+        self.oam_address = value;
     }
 
-    pub(super) fn read_oam_data(&mut self) -> u8 {
-        self.oam[self.oam_addr as usize]
+    pub(crate) fn read_oam_data(&mut self) -> u8 {
+        self.oam_data[self.oam_address as usize]
     }
 
-    pub(super) fn write_oam_data(&mut self, val: u8) {
-        self.oam[self.oam_addr as usize] = val;
-        self.oam_addr.wrapping_add(1);
+    pub(crate) fn write_oam_data(&mut self, val: u8) {
+        self.oam_data[self.oam_address as usize] = val;
+        self.oam_address = self.oam_address.wrapping_add(1);
     }
 
-    pub(super) fn write_scroll(&mut self, value: u8) {
+    pub(crate) fn write_scroll(&mut self, value: u8) {
         self.reg_scroll.write(value);
     }
 
-    pub(super) fn write_addr(&mut self, value: u8) {
+    pub(crate) fn write_addr(&mut self, value: u8) {
         self.reg_addr.write(value);
     }
 
-    pub(super) fn write_data(&mut self, value: u8) {
+    pub(crate) fn write_data(&mut self, value: u8) {
         let vram_increment = self.reg_ctrl.vram_address_increment();
         let addr = self.reg_addr.read_address(vram_increment);
         match addr {
@@ -108,32 +128,33 @@ impl NesPpu {
                 self.vram[self.normalize_vram_address(addr) as usize] = value;
             }
 
-            PALETTE_RAM_START..=PALETTE_RAM_END => {
-                self.palette[(addr - PALETTE_RAM_START) as usize] = value;
-            }
-
             // $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
             0x3F10 | 0x3F14 | 0x3F18 | 0x3F1C => {
                 self.palette[(addr - 0x10 - PALETTE_RAM_START) as usize] = value;
             }
+
+            PALETTE_RAM_START..=PALETTE_RAM_END => {
+                self.palette[(addr - PALETTE_RAM_START) as usize] = value;
+            }
+
             _ => {}
         }
     }
 
-    pub(super) fn read_data(&mut self) -> u8 {
+    pub(crate) fn read_data(&mut self) -> u8 {
         let vram_increment = self.reg_ctrl.vram_address_increment();
         let addr = self.reg_addr.read_address(vram_increment);
         match addr {
             CHR_ROM_START..=CHR_ROM_END => {
-                let result = self.last_read;
-                self.last_read = self.chr_rom[addr as usize];
+                let result = self.prev_read_value;
+                self.prev_read_value = self.chr_rom[addr as usize];
                 result
             }
 
             // TODO include mirroring or something
             NAME_TABLE_START..=NAME_TABLE_END => {
-                let result = self.last_read;
-                self.last_read = self.vram[self.normalize_vram_address(addr) as usize];
+                let result = self.prev_read_value;
+                self.prev_read_value = self.vram[self.normalize_vram_address(addr) as usize];
                 result
             }
 
@@ -145,10 +166,10 @@ impl NesPpu {
         }
     }
 
-    pub(super) fn write_oam_dma(&mut self, data: [u8; 256]) {
+    pub(crate) fn write_oam_dma(&mut self, data: [u8; 256]) {
         for x in data.into_iter() {
-            self.oam[self.oam_addr as usize] = x;
-            self.oam_addr = self.oam_addr.wrapping_add(1);
+            self.oam_data[self.oam_address as usize] = x;
+            self.oam_address = self.oam_address.wrapping_add(1);
         }
     }
 
@@ -175,4 +196,26 @@ impl NesPpu {
             _ => global_vram_offset,
         }
     }
+
+    pub(crate) fn tick(&mut self, cycles: u32) -> bool {
+       self.cycles += cycles;
+       if self.cycles >= 341 {
+           self.cycles = self.cycles - 341;
+           self.curr_scanline += 1;
+
+           if self.curr_scanline == 241 {
+               if self.reg_ctrl.generate_vblank_nmi() {
+                   self.reg_status.set_in_vblank(true);
+                   todo!("Should trigger NMI interrupt")
+               }
+           }
+
+           if self.curr_scanline >= 262 {
+               self.curr_scanline = 0;
+               self.reg_status.set_in_vblank(false);
+               return true;
+           }
+       }
+       return false;
+   }
 }

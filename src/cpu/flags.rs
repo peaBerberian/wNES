@@ -1,3 +1,7 @@
+/// # CPU flags
+///
+/// Simple implementation of the flags register of the NES' CPU.
+
 pub(super) struct CpuFlags {
     /// From lsb to msb:
     ///   0 - Carry Flag
@@ -14,10 +18,6 @@ pub(super) struct CpuFlags {
 impl CpuFlags {
     pub(super) fn new() -> Self {
         Self { flags: 0b0010_0100 }
-    }
-
-    pub(super) fn reset(&mut self) {
-        self.flags = 0b0010_0100;
     }
 
     pub(super) fn force(&mut self, byt: u8) {

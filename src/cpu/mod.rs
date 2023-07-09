@@ -1,9 +1,12 @@
+/// # CPU emulation
+///
+/// Emulates the NES 6502-family microprocessor.
+
 mod debug;
 mod flags;
 mod op_code;
 
-use op_code::{AddressMode, Instruction};
-
+use op_code::{AddressMode, Instruction, OpCode};
 use crate::bus::NesBus;
 
 pub(crate) struct CpuComputationResult {
@@ -15,13 +18,13 @@ pub(crate) struct CpuComputationResult {
 const STACK_LO: u16 = 0x0100;
 
 pub(super) struct NesCpu<'a> {
-    /// Value of the `A` register
+    /// Value in the `A` register
     reg_a: u8,
 
-    /// Value of the `X` register
+    /// Value in the `X` register
     reg_x: u8,
 
-    /// Value of the `Y` register
+    /// Value in the `Y` register
     reg_y: u8,
 
     /// flags register.
@@ -61,20 +64,10 @@ impl<'a> NesCpu<'a> {
         self.bus.write(addr, val);
     }
 
-    pub(super) fn reset(&mut self) {
-        self.reg_a = 0;
-        self.reg_x = 0;
-        self.reg_y = 0;
-        self.flags.reset();
-        self.stack_pointer = 0xFF;
-        self.program_counter = self.read_u16_at(0xFFFC);
-    }
-
     pub(super) fn next_op(&mut self) -> Result<CpuComputationResult, AddressComputationError> {
         if cfg!(feature = "debug_cpu") {
             use super::cpu::debug::*;
-            let (hex_format, readable_format) =
-                format_instr(self.bus, self.program_counter, self.reg_x, self.reg_y);
+            let format = format_instr(self.bus, self.program_counter, self.reg_x, self.reg_y);
             let reg_status = format!(
                 "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}",
                 self.reg_a,
@@ -84,12 +77,12 @@ impl<'a> NesCpu<'a> {
                 self.stack_pointer
             );
             println!(
-                "{:04X}  {} {:32} {}",
-                self.program_counter, hex_format, readable_format, reg_status
+                "{:04X}  {:8} {:32} {}",
+                self.program_counter, format.hex, format.fmt, reg_status
             );
         }
         let op_code = self.bus.read(self.program_counter);
-        let parsed_op = op_code::parse(op_code);
+        let parsed_op = OpCode::new(op_code);
         self.program_counter += 1;
         match (parsed_op.instr(), parsed_op.mode()) {
             (Instruction::ADC, mode) => {
@@ -136,7 +129,10 @@ impl<'a> NesCpu<'a> {
             (Instruction::BRK, AddressMode::Implied) => {
                 self.exec_brk();
                 // TODO normally we should just continue execution from 0xFFFE
-                return Ok(CpuComputationResult { cycles: parsed_op.nb_cycles(), brk: true });
+                return Ok(CpuComputationResult {
+                    cycles: parsed_op.nb_cycles(),
+                    brk: true,
+                });
             }
             (Instruction::BVC, AddressMode::Relative) => {
                 let addr = self.compute_addr(AddressMode::Relative)?;
@@ -276,7 +272,11 @@ impl<'a> NesCpu<'a> {
                 }
             }
         };
-        Ok(CpuComputationResult { cycles: parsed_op.nb_cycles(), brk: false })
+        self.bus.tick(parsed_op.nb_cycles());
+        Ok(CpuComputationResult {
+            cycles: parsed_op.nb_cycles(),
+            brk: false,
+        })
     }
 
     fn read_u16_at(&mut self, addr: u16) -> u16 {
@@ -686,7 +686,7 @@ impl<'a> NesCpu<'a> {
         let orig = self.reg_a;
         self.reg_a = orig << 1;
         if self.flags.carry() {
-            self.reg_a += 1;
+            self.reg_a = self.reg_a.wrapping_add(1);
         }
         self.flags.set_carry(orig & 0b1000_0000 > 0);
         self.set_zero_and_negative_flags(self.reg_a);
@@ -696,7 +696,7 @@ impl<'a> NesCpu<'a> {
         let val = self.read_u8_at(addr);
         let mut new_val = val << 1;
         if self.flags.carry() {
-            new_val += 1;
+            new_val = new_val.wrapping_add(1);
         }
         self.write_u8_at(addr, new_val);
         self.flags.set_carry(val & 0b1000_0000 > 0);

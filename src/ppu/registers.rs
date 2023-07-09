@@ -1,3 +1,7 @@
+/// Implement PPU Control Register
+///
+/// This struct is mainly dumb storage and doesn't have much logic own its own.
+///
 /// VPHB SINN
 /// |||| ||||
 /// |||| ||++- Base nametable address
@@ -63,6 +67,10 @@ impl PpuCtrlRegister {
     }
 }
 
+/// Implement PPU Mask Register
+///
+/// This struct is mainly dumb storage and doesn't have much logic own its own.
+///
 /// 7  bit  0
 /// ---- ----
 /// BGRs bMmG
@@ -161,6 +169,10 @@ impl PpuMaskRegister {
     }
 }
 
+/// Implement PPU Status Register
+///
+/// This struct is mainly dumb storage and doesn't have much logic own its own.
+///
 /// 7  bit  0
 /// ---- ----
 /// VSO. ....
@@ -230,11 +242,17 @@ impl PpuStatusRegister {
     }
 }
 
+/// Represent the way the PpuScrollRegister will be addressed
 enum PpuScrollRegisterAddressLatch {
+    /// Wrote value will affect the horizontal offset.
     Horizontal,
+    /// Wrote value will affect the vertical offset.
     Vertical,
 }
 
+/// Implement PPU Scroll Register
+///
+/// This struct is mainly dumb storage and doesn't have much logic own its own.
 pub(super) struct PpuScrollRegister {
     horizontal_offset: u8,
     vertical_offset: u8,
@@ -268,6 +286,9 @@ impl PpuScrollRegister {
     }
 }
 
+/// Implement PPU Address Register
+///
+/// This struct is mainly dumb storage and doesn't have much logic own its own.
 pub(super) struct PpuAddrRegister {
     first: u8,
     second: u8,

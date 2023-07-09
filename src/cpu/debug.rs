@@ -1,13 +1,30 @@
-use super::op_code::{self, AddressMode};
+/// # CPU debug
+///
+/// Allows to produce visual representation of CPU instructions for debugging.
 
+use super::op_code::{OpCode, AddressMode};
+
+/// Represents visual formatting of CPU instructions
+pub(super) struct FormattedInstruction {
+    /// Bytes representing the instruction in an hex format each hex character
+    /// being separated by a space.
+    pub(super) hex: String,
+
+    /// Enriched Textual Assembly representation representing the instruction.
+    pub(super) fmt: String,
+}
+
+/// From the instruction starting at the `offset` address when read on the given `bus`, produce
+/// textual representation of the instruction.
+/// @see FormattedInstruction
 pub(super) fn format_instr(
     bus: &mut super::NesBus,
     offset: u16,
     reg_x: u8,
     reg_y: u8,
-) -> (String, String) {
+) -> FormattedInstruction {
     let op_code = bus.read(offset);
-    let parsed_op = op_code::parse(op_code);
+    let parsed_op = OpCode::new(op_code);
     let mnemon = get_mnemonic(op_code).unwrap_or(" ???");
     let (operand_hex, operand_value) = match parsed_op.mode() {
         AddressMode::Immediate => {
@@ -92,13 +109,19 @@ pub(super) fn format_instr(
         fmt_resolved_operand(parsed_op.mode(), bus, offset + 1, reg_x, reg_y)
     };
 
-    let instruction_hex = format!("{:02X} {:05}", op_code, operand_hex);
+    let instruction_hex = format!("{:02X} {}", op_code, operand_hex);
     let readable_format = format!("{} {}", mnemon, operand_value);
     if let Some(resolved) = resolved {
         let new_val = format!("{}{}", readable_format, resolved);
-        (instruction_hex, new_val)
+        FormattedInstruction {
+            hex: instruction_hex,
+            fmt: new_val,
+        }
     } else {
-        (instruction_hex, readable_format)
+        FormattedInstruction {
+            hex: instruction_hex,
+            fmt: readable_format,
+        }
     }
 }
 
@@ -170,18 +193,16 @@ fn get_mnemonic(instr: u8) -> Option<&'static str> {
         0xA7 | 0xB7 | 0xAF | 0xBF | 0xA3 | 0xB3 => Some("*LAX"),
         0x87 | 0x97 | 0x8f | 0x83 => Some("*SAX"),
         0xEB => Some("*SBC"),
-        0xC7 |
-        0xD7 |
-        0xCF |
-        0xDF |
-        0xDB |
-        0xC3 |
-        0xD3 => Some("*DCP"),
+        0xC7 | 0xD7 | 0xCF | 0xDF | 0xDB | 0xC3 | 0xD3 => Some("*DCP"),
 
         _ => None,
     }
 }
 
+/// Format the operand part of an instruction, `offset` leading to the first addressable byte when
+/// accessing it throuhg the given `bus`.
+///
+/// Returns `None` if no operand textual representation is needed.
 fn fmt_resolved_operand(
     mode: AddressMode,
     bus: &mut super::NesBus,
@@ -192,7 +213,6 @@ fn fmt_resolved_operand(
     match mode {
         AddressMode::Immediate => None,
         AddressMode::Unknown => None,
-        // AddressMode::Absolute => None,
         AddressMode::Accumulator => None,
         AddressMode::Implied => None,
         AddressMode::Relative => None,
@@ -248,14 +268,6 @@ fn fmt_resolved_operand(
             let val = read_u16_at(bus, offset);
             Some(format!(" = {:02X}", bus.read(val)))
         }
-        // AddressMode::Relative => {
-        //     let val = bus.read(offset);
-        //     if val <= 127 {
-        //         Some(format!(" = {:02X}", offset + 1 + val as u16))
-        //     } else {
-        //         Some(format!(" = {:02X}", offset + 1 - ((val ^ 0xFF) + 1) as u16))
-        //     }
-        // }
         AddressMode::Indirect => {
             let val = read_u16_at(bus, offset);
 
@@ -283,87 +295,3 @@ fn read_u16_at(bus: &mut super::NesBus, addr: u16) -> u16 {
         u16::from(bus.read(addr)) | u16::from(bus.read(addr + 1)) << 8
     }
 }
-
-// enum OperandSyntaxError {
-//     Overflow,
-// }
-
-// fn byte_to_ascii_hex(
-//     byt: u8
-// ) -> [u8; 2] {
-//     let divided = byt / 16;
-//     let modulo = byt % 16;
-//     let first_digit = if divided > 9 {
-//         divided + b'A'
-//     } else {
-//         divided + b'0'
-//     };
-//     let second_digit = if modulo > 9 {
-//         modulo + b'A'
-//     } else {
-//         modulo + b'0'
-//     };
-//     [first_digit, second_digit]
-// }
-
-// fn format_instr(
-//     mode: AddressMode,
-//     prg: &super::NesBus,
-//     offset: u16,
-// ) -> Result<String, OperandSyntaxError> {
-//     let offset_usize = offset as usize;
-//     match mode {
-//         AddressMode::Immediate => match prg.get(offset_usize) {
-//             Some(val) => Ok(format!("#${:X?}", val)),
-//             _ => Err(OperandSyntaxError::Overflow),
-//         },
-//         AddressMode::Absolute => match (prg.get(offset_usize), prg.get(offset_usize + 1)) {
-//             (Some(first), Some(scnd)) => Ok(format!("${:X?}{:X?}", first, scnd)),
-//             _ => Err(OperandSyntaxError::Overflow),
-//         },
-//         AddressMode::AbsoluteX => match (prg.get(offset_usize), prg.get(offset_usize + 1)) {
-//             (Some(first), Some(scnd)) => Ok(format!("${:X?}{:X?},X", first, scnd)),
-//             _ => Err(OperandSyntaxError::Overflow),
-//         },
-//         AddressMode::AbsoluteY => match (prg.get(offset_usize), prg.get(offset_usize + 1)) {
-//             (Some(first), Some(scnd)) => Ok(format!("${:X?}{:X?},Y", first, scnd)),
-//             _ => Err(OperandSyntaxError::Overflow),
-//         },
-//         AddressMode::ZeroPage => match prg.get(offset_usize) {
-//             Some(val) => Ok(format!("${:X?}", val)),
-//             _ => Err(OperandSyntaxError::Overflow),
-//         },
-//         AddressMode::ZeroPageX => match prg.get(offset_usize) {
-//             Some(val) => Ok(format!("${:X?},X", val)),
-//             _ => Err(OperandSyntaxError::Overflow),
-//         },
-//         AddressMode::ZeroPageY => match prg.get(offset_usize) {
-//             Some(val) => Ok(format!("${:X?},Y", val)),
-//             _ => Err(OperandSyntaxError::Overflow),
-//         },
-//         AddressMode::Relative => match prg.get(offset_usize) {
-//             Some(val) if val <= &127 => Ok(format!("*+{}", val)),
-//             Some(val) => Ok(format!("*-{}", (val ^ 0xFF) + 1)),
-//             _ => Err(OperandSyntaxError::Overflow),
-//         },
-//         AddressMode::Indirect => match (prg.get(offset_usize), prg.get(offset_usize + 1)) {
-//             (Some(first), Some(scnd)) => Ok(format!("(${:X?}{:X?})", first, scnd)),
-//             _ => Err(OperandSyntaxError::Overflow),
-//         },
-//         AddressMode::IndirectZeroPageX => {
-//             match (prg.get(offset_usize), prg.get(offset_usize + 1)) {
-//                 (Some(first), Some(scnd)) => Ok(format!("(${:X?}{:X?},X)", first, scnd)),
-//                 _ => Err(OperandSyntaxError::Overflow),
-//             }
-//         }
-//         AddressMode::IndirectZeroPageY => {
-//             match (prg.get(offset_usize), prg.get(offset_usize + 1)) {
-//                 (Some(first), Some(scnd)) => Ok(format!("(${:X?}{:X?}),Y", first, scnd)),
-//                 _ => Err(OperandSyntaxError::Overflow),
-//             }
-//         }
-//         AddressMode::Accumulator => Ok("A".to_owned()),
-//         AddressMode::Implied => Ok("".to_owned()),
-//         AddressMode::Unknown => Ok("".to_owned()),
-//     }
-// }

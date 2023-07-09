@@ -1,3 +1,7 @@
+/// # Native UI
+///
+/// Code implementing the UI logic and event loop when running the emulator under SDL12.
+
 use sdl2::event::Event;
 use sdl2::EventPump;
 use sdl2::keyboard::Keycode;

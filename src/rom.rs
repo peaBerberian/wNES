@@ -1,3 +1,7 @@
+/// # ROM
+///
+/// Code parsing the NES ROM files initially written for the iNES emulator.
+
 #[derive(Clone, Debug)]
 pub(crate) enum RomParsingError {
     NoNESHeader,

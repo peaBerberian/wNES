@@ -1,30 +1,37 @@
-//  _______________ $10000  _______________
-// | PRG-ROM       |       |               |
-// | Upper Bank    |       |               |
-// |_ _ _ _ _ _ _ _| $C000 | PRG-ROM       |
-// | PRG-ROM       |       |               |
-// | Lower Bank    |       |               |
-// |_______________| $8000 |_______________|
-// | SRAM          |       | SRAM          |
-// |_______________| $6000 |_______________|
-// | Expansion ROM |       | Expansion ROM |
-// |_______________| $4020 |_______________|
-// | I/O Registers |       |               |
-// |_ _ _ _ _ _ _ _| $4000 |               |
-// | Mirrors       |       | I/O Registers |
-// | $2000-$2007   |       |               |
-// |_ _ _ _ _ _ _ _| $2008 |               |
-// | I/O Registers |       |               |
-// |_______________| $2000 |_______________|
-// | Mirrors       |       |               |
-// | $0000-$07FF   |       |               |
-// |_ _ _ _ _ _ _ _| $0800 |               |
-// | RAM           |       | RAM           |
-// |_ _ _ _ _ _ _ _| $0200 |               |
-// | Stack         |       |               |
-// |_ _ _ _ _ _ _ _| $0100 |               |
-// | Zero Page     |       |               |
-// |_______________| $0000 |_______________|
+/// # Bus emulation
+///
+/// Emulates a "bus" concept, that a NES CPU emulation will use to read and write to specific
+/// address. This bus emulation actually owns the PPU emulation to facilitate communication.
+///
+/// ## Addressable memory representation
+///
+///  _______________ $10000  _______________
+/// | PRG-ROM       |       |               |
+/// | Upper Bank    |       |               |
+/// |_ _ _ _ _ _ _ _| $C000 | PRG-ROM       |
+/// | PRG-ROM       |       |               |
+/// | Lower Bank    |       |               |
+/// |_______________| $8000 |_______________|
+/// | SRAM          |       | SRAM          |
+/// |_______________| $6000 |_______________|
+/// | Expansion ROM |       | Expansion ROM |
+/// |_______________| $4020 |_______________|
+/// | I/O Registers |       |               |
+/// |_ _ _ _ _ _ _ _| $4000 |               |
+/// | Mirrors       |       | I/O Registers |
+/// | $2000-$2007   |       |               |
+/// |_ _ _ _ _ _ _ _| $2008 |               |
+/// | I/O Registers |       |               |
+/// |_______________| $2000 |_______________|
+/// | Mirrors       |       |               |
+/// | $0000-$07FF   |       |               |
+/// |_ _ _ _ _ _ _ _| $0800 |               |
+/// | RAM           |       | RAM           |
+/// |_ _ _ _ _ _ _ _| $0200 |               |
+/// | Stack         |       |               |
+/// |_ _ _ _ _ _ _ _| $0100 |               |
+/// | Zero Page     |       |               |
+/// |_______________| $0000 |_______________|
 
 use crate::{rom::Rom, ppu::NesPpu};
 
@@ -117,4 +124,8 @@ impl NesBus {
             _ => { },
         }
     }
+
+    pub(crate) fn tick(&mut self, cycles: u8) {
+       self.ppu.tick(cycles as u32 * 3);
+   }
 }

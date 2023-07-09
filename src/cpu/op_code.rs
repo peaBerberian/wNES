@@ -1,13 +1,339 @@
+/// # Op Code parsing
+///
+/// Code regrouping the listing and parsing of NES CPU's opcodes.
+
+/// Structure representing a single parsed OpCode.
 pub(super) struct OpCode {
+    /// Identify the instruction
     instr: Instruction,
+    /// Addressing mode with which the potential operands should be considered.
     mode: AddressMode,
+    /// Base number of CPU cycles the operation takes. Note that some instructions like branches
+    /// may take more e.g. if the branch is taken.
     nb_cycles: u8,
+    /// Number of bytes the instruction occupates.
     nb_bytes: u8,
+    /// If `true` the operation represented by this instruction will take one more CPU cycles if
+    /// the addressed memory contained in the operand crosses a memory page.
     page_crossing_cycle: bool,
 }
 
 impl OpCode {
-    fn new(instr: Instruction, mode: AddressMode) -> Self {
+    /// Produce a new `OpCode` from its byte as found in the program's ROM.
+    pub(super) fn new(instr: u8) -> Self {
+        // TODO as an array/map insteady?
+        match instr {
+            // ADC
+            0x69 => OpCode::from_parsed_instr(Instruction::ADC, AddressMode::Immediate),
+            0x65 => OpCode::from_parsed_instr(Instruction::ADC, AddressMode::ZeroPage),
+            0x75 => OpCode::from_parsed_instr(Instruction::ADC, AddressMode::ZeroPageX),
+            0x6D => OpCode::from_parsed_instr(Instruction::ADC, AddressMode::Absolute),
+            0x7D => OpCode::from_parsed_instr(Instruction::ADC, AddressMode::AbsoluteX),
+            0x79 => OpCode::from_parsed_instr(Instruction::ADC, AddressMode::AbsoluteY),
+            0x61 => OpCode::from_parsed_instr(Instruction::ADC, AddressMode::IndirectZeroPageX),
+            0x71 => OpCode::from_parsed_instr(Instruction::ADC, AddressMode::IndirectZeroPageY),
+
+            // AND
+            0x29 => OpCode::from_parsed_instr(Instruction::AND, AddressMode::Immediate),
+            0x25 => OpCode::from_parsed_instr(Instruction::AND, AddressMode::ZeroPage),
+            0x35 => OpCode::from_parsed_instr(Instruction::AND, AddressMode::ZeroPageX),
+            0x2D => OpCode::from_parsed_instr(Instruction::AND, AddressMode::Absolute),
+            0x3D => OpCode::from_parsed_instr(Instruction::AND, AddressMode::AbsoluteX),
+            0x39 => OpCode::from_parsed_instr(Instruction::AND, AddressMode::AbsoluteY),
+            0x21 => OpCode::from_parsed_instr(Instruction::AND, AddressMode::IndirectZeroPageX),
+            0x31 => OpCode::from_parsed_instr(Instruction::AND, AddressMode::IndirectZeroPageY),
+
+            // ASL
+            0x0A => OpCode::from_parsed_instr(Instruction::ASL, AddressMode::Accumulator),
+            0x06 => OpCode::from_parsed_instr(Instruction::ASL, AddressMode::ZeroPage),
+            0x16 => OpCode::from_parsed_instr(Instruction::ASL, AddressMode::ZeroPageX),
+            0x0E => OpCode::from_parsed_instr(Instruction::ASL, AddressMode::Absolute),
+            0x1E => OpCode::from_parsed_instr(Instruction::ASL, AddressMode::AbsoluteX),
+
+            0x90 => OpCode::from_parsed_instr(Instruction::BCC, AddressMode::Relative),
+
+            0xB0 => OpCode::from_parsed_instr(Instruction::BCS, AddressMode::Relative),
+
+            0xF0 => OpCode::from_parsed_instr(Instruction::BEQ, AddressMode::Relative),
+
+            // BIT
+            0x24 => OpCode::from_parsed_instr(Instruction::BIT, AddressMode::ZeroPage),
+            0x2C => OpCode::from_parsed_instr(Instruction::BIT, AddressMode::Absolute),
+
+            0x30 => OpCode::from_parsed_instr(Instruction::BMI, AddressMode::Relative),
+
+            0xD0 => OpCode::from_parsed_instr(Instruction::BNE, AddressMode::Relative),
+
+            0x10 => OpCode::from_parsed_instr(Instruction::BPL, AddressMode::Relative),
+
+            0x00 => OpCode::from_parsed_instr(Instruction::BRK, AddressMode::Implied),
+
+            0x50 => OpCode::from_parsed_instr(Instruction::BVC, AddressMode::Relative),
+
+            0x70 => OpCode::from_parsed_instr(Instruction::BVS, AddressMode::Relative),
+
+            0x18 => OpCode::from_parsed_instr(Instruction::CLC, AddressMode::Implied),
+
+            0xD8 => OpCode::from_parsed_instr(Instruction::CLD, AddressMode::Implied),
+
+            0x58 => OpCode::from_parsed_instr(Instruction::CLI, AddressMode::Implied),
+
+            0xB8 => OpCode::from_parsed_instr(Instruction::CLV, AddressMode::Implied),
+
+            // CMP
+            0xC9 => OpCode::from_parsed_instr(Instruction::CMP, AddressMode::Immediate),
+            0xC5 => OpCode::from_parsed_instr(Instruction::CMP, AddressMode::ZeroPage),
+            0xD5 => OpCode::from_parsed_instr(Instruction::CMP, AddressMode::ZeroPageX),
+            0xCD => OpCode::from_parsed_instr(Instruction::CMP, AddressMode::Absolute),
+            0xDD => OpCode::from_parsed_instr(Instruction::CMP, AddressMode::AbsoluteX),
+            0xD9 => OpCode::from_parsed_instr(Instruction::CMP, AddressMode::AbsoluteY),
+            0xC1 => OpCode::from_parsed_instr(Instruction::CMP, AddressMode::IndirectZeroPageX),
+            0xD1 => OpCode::from_parsed_instr(Instruction::CMP, AddressMode::IndirectZeroPageY),
+
+            // CPX
+            0xE0 => OpCode::from_parsed_instr(Instruction::CPX, AddressMode::Immediate),
+            0xE4 => OpCode::from_parsed_instr(Instruction::CPX, AddressMode::ZeroPage),
+            0xEC => OpCode::from_parsed_instr(Instruction::CPX, AddressMode::Absolute),
+
+            // CPY
+            0xC0 => OpCode::from_parsed_instr(Instruction::CPY, AddressMode::Immediate),
+            0xC4 => OpCode::from_parsed_instr(Instruction::CPY, AddressMode::ZeroPage),
+            0xCC => OpCode::from_parsed_instr(Instruction::CPY, AddressMode::Absolute),
+
+            // DEC
+            0xC6 => OpCode::from_parsed_instr(Instruction::DEC, AddressMode::ZeroPage),
+            0xD6 => OpCode::from_parsed_instr(Instruction::DEC, AddressMode::ZeroPageX),
+            0xCE => OpCode::from_parsed_instr(Instruction::DEC, AddressMode::Absolute),
+            0xDE => OpCode::from_parsed_instr(Instruction::DEC, AddressMode::AbsoluteX),
+
+            0xCA => OpCode::from_parsed_instr(Instruction::DEX, AddressMode::Implied),
+
+            0x88 => OpCode::from_parsed_instr(Instruction::DEY, AddressMode::Implied),
+
+            // EOR
+            0x49 => OpCode::from_parsed_instr(Instruction::EOR, AddressMode::Immediate),
+            0x45 => OpCode::from_parsed_instr(Instruction::EOR, AddressMode::ZeroPage),
+            0x55 => OpCode::from_parsed_instr(Instruction::EOR, AddressMode::ZeroPageX),
+            0x4D => OpCode::from_parsed_instr(Instruction::EOR, AddressMode::Absolute),
+            0x5D => OpCode::from_parsed_instr(Instruction::EOR, AddressMode::AbsoluteX),
+            0x59 => OpCode::from_parsed_instr(Instruction::EOR, AddressMode::AbsoluteY),
+            0x41 => OpCode::from_parsed_instr(Instruction::EOR, AddressMode::IndirectZeroPageX),
+            0x51 => OpCode::from_parsed_instr(Instruction::EOR, AddressMode::IndirectZeroPageY),
+
+            // INC
+            0xE6 => OpCode::from_parsed_instr(Instruction::INC, AddressMode::ZeroPage),
+            0xF6 => OpCode::from_parsed_instr(Instruction::INC, AddressMode::ZeroPageX),
+            0xEE => OpCode::from_parsed_instr(Instruction::INC, AddressMode::Absolute),
+            0xFE => OpCode::from_parsed_instr(Instruction::INC, AddressMode::AbsoluteX),
+
+            0xE8 => OpCode::from_parsed_instr(Instruction::INX, AddressMode::Implied),
+
+            0xC8 => OpCode::from_parsed_instr(Instruction::INY, AddressMode::Implied),
+
+            // JMP
+            0x4C => OpCode::from_parsed_instr(Instruction::JMP, AddressMode::Absolute),
+            0x6C => OpCode::from_parsed_instr(Instruction::JMP, AddressMode::Indirect),
+
+            0x20 => OpCode::from_parsed_instr(Instruction::JSR, AddressMode::Absolute),
+
+            // LDA
+            0xA9 => OpCode::from_parsed_instr(Instruction::LDA, AddressMode::Immediate),
+            0xA5 => OpCode::from_parsed_instr(Instruction::LDA, AddressMode::ZeroPage),
+            0xB5 => OpCode::from_parsed_instr(Instruction::LDA, AddressMode::ZeroPageX),
+            0xAD => OpCode::from_parsed_instr(Instruction::LDA, AddressMode::Absolute),
+            0xBD => OpCode::from_parsed_instr(Instruction::LDA, AddressMode::AbsoluteX),
+            0xB9 => OpCode::from_parsed_instr(Instruction::LDA, AddressMode::AbsoluteY),
+            0xA1 => OpCode::from_parsed_instr(Instruction::LDA, AddressMode::IndirectZeroPageX),
+            0xB1 => OpCode::from_parsed_instr(Instruction::LDA, AddressMode::IndirectZeroPageY),
+
+            // LDX
+            0xA2 => OpCode::from_parsed_instr(Instruction::LDX, AddressMode::Immediate),
+            0xA6 => OpCode::from_parsed_instr(Instruction::LDX, AddressMode::ZeroPage),
+            0xB6 => OpCode::from_parsed_instr(Instruction::LDX, AddressMode::ZeroPageY),
+            0xAE => OpCode::from_parsed_instr(Instruction::LDX, AddressMode::Absolute),
+            0xBE => OpCode::from_parsed_instr(Instruction::LDX, AddressMode::AbsoluteY),
+
+            // LDY
+            0xA0 => OpCode::from_parsed_instr(Instruction::LDY, AddressMode::Immediate),
+            0xA4 => OpCode::from_parsed_instr(Instruction::LDY, AddressMode::ZeroPage),
+            0xB4 => OpCode::from_parsed_instr(Instruction::LDY, AddressMode::ZeroPageX),
+            0xAC => OpCode::from_parsed_instr(Instruction::LDY, AddressMode::Absolute),
+            0xBC => OpCode::from_parsed_instr(Instruction::LDY, AddressMode::AbsoluteX),
+
+            // LSR
+            0x4A => OpCode::from_parsed_instr(Instruction::LSR, AddressMode::Accumulator),
+            0x46 => OpCode::from_parsed_instr(Instruction::LSR, AddressMode::ZeroPage),
+            0x56 => OpCode::from_parsed_instr(Instruction::LSR, AddressMode::ZeroPageX),
+            0x4E => OpCode::from_parsed_instr(Instruction::LSR, AddressMode::Absolute),
+            0x5E => OpCode::from_parsed_instr(Instruction::LSR, AddressMode::AbsoluteX),
+
+            0xEA => OpCode::from_parsed_instr(Instruction::NOP, AddressMode::Implied),
+
+            // ORA
+            0x09 => OpCode::from_parsed_instr(Instruction::ORA, AddressMode::Immediate),
+            0x05 => OpCode::from_parsed_instr(Instruction::ORA, AddressMode::ZeroPage),
+            0x15 => OpCode::from_parsed_instr(Instruction::ORA, AddressMode::ZeroPageX),
+            0x0D => OpCode::from_parsed_instr(Instruction::ORA, AddressMode::Absolute),
+            0x1D => OpCode::from_parsed_instr(Instruction::ORA, AddressMode::AbsoluteX),
+            0x19 => OpCode::from_parsed_instr(Instruction::ORA, AddressMode::AbsoluteY),
+            0x01 => OpCode::from_parsed_instr(Instruction::ORA, AddressMode::IndirectZeroPageX),
+            0x11 => OpCode::from_parsed_instr(Instruction::ORA, AddressMode::IndirectZeroPageY),
+
+            0x48 => OpCode::from_parsed_instr(Instruction::PHA, AddressMode::Implied),
+
+            0x08 => OpCode::from_parsed_instr(Instruction::PHP, AddressMode::Implied),
+
+            0x68 => OpCode::from_parsed_instr(Instruction::PLA, AddressMode::Implied),
+
+            0x28 => OpCode::from_parsed_instr(Instruction::PLP, AddressMode::Implied),
+
+            // ROL
+            0x2A => OpCode::from_parsed_instr(Instruction::ROL, AddressMode::Accumulator),
+            0x26 => OpCode::from_parsed_instr(Instruction::ROL, AddressMode::ZeroPage),
+            0x36 => OpCode::from_parsed_instr(Instruction::ROL, AddressMode::ZeroPageX),
+            0x2E => OpCode::from_parsed_instr(Instruction::ROL, AddressMode::Absolute),
+            0x3E => OpCode::from_parsed_instr(Instruction::ROL, AddressMode::AbsoluteX),
+
+            // ROR
+            0x6A => OpCode::from_parsed_instr(Instruction::ROR, AddressMode::Accumulator),
+            0x66 => OpCode::from_parsed_instr(Instruction::ROR, AddressMode::ZeroPage),
+            0x76 => OpCode::from_parsed_instr(Instruction::ROR, AddressMode::ZeroPageX),
+            0x6E => OpCode::from_parsed_instr(Instruction::ROR, AddressMode::Absolute),
+            0x7E => OpCode::from_parsed_instr(Instruction::ROR, AddressMode::AbsoluteX),
+
+            0x40 => OpCode::from_parsed_instr(Instruction::RTI, AddressMode::Implied),
+
+            0x60 => OpCode::from_parsed_instr(Instruction::RTS, AddressMode::Implied),
+
+            // SBC
+            0xE9 => OpCode::from_parsed_instr(Instruction::SBC, AddressMode::Immediate),
+            0xE5 => OpCode::from_parsed_instr(Instruction::SBC, AddressMode::ZeroPage),
+            0xF5 => OpCode::from_parsed_instr(Instruction::SBC, AddressMode::ZeroPageX),
+            0xED => OpCode::from_parsed_instr(Instruction::SBC, AddressMode::Absolute),
+            0xFD => OpCode::from_parsed_instr(Instruction::SBC, AddressMode::AbsoluteX),
+            0xF9 => OpCode::from_parsed_instr(Instruction::SBC, AddressMode::AbsoluteY),
+            0xE1 => OpCode::from_parsed_instr(Instruction::SBC, AddressMode::IndirectZeroPageX),
+            0xF1 => OpCode::from_parsed_instr(Instruction::SBC, AddressMode::IndirectZeroPageY),
+
+            0x38 => OpCode::from_parsed_instr(Instruction::SEC, AddressMode::Implied),
+
+            0xF8 => OpCode::from_parsed_instr(Instruction::SED, AddressMode::Implied),
+
+            0x78 => OpCode::from_parsed_instr(Instruction::SEI, AddressMode::Implied),
+
+            // STA
+            0x85 => OpCode::from_parsed_instr(Instruction::STA, AddressMode::ZeroPage),
+            0x95 => OpCode::from_parsed_instr(Instruction::STA, AddressMode::ZeroPageX),
+            0x8D => OpCode::from_parsed_instr(Instruction::STA, AddressMode::Absolute),
+            0x9D => OpCode::from_parsed_instr(Instruction::STA, AddressMode::AbsoluteX),
+            0x99 => OpCode::from_parsed_instr(Instruction::STA, AddressMode::AbsoluteY),
+            0x81 => OpCode::from_parsed_instr(Instruction::STA, AddressMode::IndirectZeroPageX),
+            0x91 => OpCode::from_parsed_instr(Instruction::STA, AddressMode::IndirectZeroPageY),
+
+            // STX
+            0x86 => OpCode::from_parsed_instr(Instruction::STX, AddressMode::ZeroPage),
+            0x96 => OpCode::from_parsed_instr(Instruction::STX, AddressMode::ZeroPageY),
+            0x8E => OpCode::from_parsed_instr(Instruction::STX, AddressMode::Absolute),
+
+            // STY
+            0x84 => OpCode::from_parsed_instr(Instruction::STY, AddressMode::ZeroPage),
+            0x94 => OpCode::from_parsed_instr(Instruction::STY, AddressMode::ZeroPageX),
+            0x8C => OpCode::from_parsed_instr(Instruction::STY, AddressMode::Absolute),
+
+            0xAA => OpCode::from_parsed_instr(Instruction::TAX, AddressMode::Implied),
+
+            0xA8 => OpCode::from_parsed_instr(Instruction::TAY, AddressMode::Implied),
+
+            0xBA => OpCode::from_parsed_instr(Instruction::TSX, AddressMode::Implied),
+
+            0x8A => OpCode::from_parsed_instr(Instruction::TXA, AddressMode::Implied),
+
+            0x9A => OpCode::from_parsed_instr(Instruction::TXS, AddressMode::Implied),
+
+            0x98 => OpCode::from_parsed_instr(Instruction::TYA, AddressMode::Implied),
+
+            // Unofficial ones
+            0xC7 => OpCode::from_parsed_instr(Instruction::UDCP, AddressMode::ZeroPage),
+            0xD7 => OpCode::from_parsed_instr(Instruction::UDCP, AddressMode::ZeroPageX),
+            0xCF => OpCode::from_parsed_instr(Instruction::UDCP, AddressMode::Absolute),
+            0xDF => OpCode::from_parsed_instr(Instruction::UDCP, AddressMode::AbsoluteX),
+            0xDB => OpCode::from_parsed_instr(Instruction::UDCP, AddressMode::AbsoluteY),
+            0xC3 => OpCode::from_parsed_instr(Instruction::UDCP, AddressMode::IndirectZeroPageX),
+            0xD3 => OpCode::from_parsed_instr(Instruction::UDCP, AddressMode::IndirectZeroPageY),
+
+            0x27 => OpCode::from_parsed_instr(Instruction::URLA, AddressMode::ZeroPage),
+            0x37 => OpCode::from_parsed_instr(Instruction::URLA, AddressMode::ZeroPageX),
+            0x2F => OpCode::from_parsed_instr(Instruction::URLA, AddressMode::Absolute),
+            0x3F => OpCode::from_parsed_instr(Instruction::URLA, AddressMode::AbsoluteX),
+            0x3B => OpCode::from_parsed_instr(Instruction::URLA, AddressMode::AbsoluteY),
+            0x23 => OpCode::from_parsed_instr(Instruction::URLA, AddressMode::IndirectZeroPageX),
+            0x33 => OpCode::from_parsed_instr(Instruction::URLA, AddressMode::IndirectZeroPageY),
+
+            0x07 => OpCode::from_parsed_instr(Instruction::USLO, AddressMode::ZeroPage),
+            0x17 => OpCode::from_parsed_instr(Instruction::USLO, AddressMode::ZeroPageX),
+            0x0F => OpCode::from_parsed_instr(Instruction::USLO, AddressMode::Absolute),
+            0x1F => OpCode::from_parsed_instr(Instruction::USLO, AddressMode::AbsoluteX),
+            0x1B => OpCode::from_parsed_instr(Instruction::USLO, AddressMode::AbsoluteY),
+            0x03 => OpCode::from_parsed_instr(Instruction::USLO, AddressMode::IndirectZeroPageX),
+            0x13 => OpCode::from_parsed_instr(Instruction::USLO, AddressMode::IndirectZeroPageY),
+
+            0x47 => OpCode::from_parsed_instr(Instruction::USRE, AddressMode::ZeroPage),
+            0x57 => OpCode::from_parsed_instr(Instruction::USRE, AddressMode::ZeroPageX),
+            0x4F => OpCode::from_parsed_instr(Instruction::USRE, AddressMode::Absolute),
+            0x5F => OpCode::from_parsed_instr(Instruction::USRE, AddressMode::AbsoluteX),
+            0x5B => OpCode::from_parsed_instr(Instruction::USRE, AddressMode::AbsoluteY),
+            0x43 => OpCode::from_parsed_instr(Instruction::USRE, AddressMode::IndirectZeroPageX),
+            0x53 => OpCode::from_parsed_instr(Instruction::USRE, AddressMode::IndirectZeroPageY),
+
+            // UNOP
+            0x1A => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::Implied),
+            0x3A => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::Implied),
+            0x5A => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::Implied),
+            0x7A => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::Implied),
+            0xDA => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::Implied),
+            0xFA => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::Implied),
+            0x80 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::Immediate),
+            0x82 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::Immediate),
+            0x89 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::Immediate),
+            0xC2 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::Immediate),
+            0xE2 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::Immediate),
+            0x04 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::ZeroPage),
+            0x44 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::ZeroPage),
+            0x64 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::ZeroPage),
+            0x14 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::ZeroPageX),
+            0x34 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::ZeroPageX),
+            0x54 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::ZeroPageX),
+            0x74 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::ZeroPageX),
+            0xD4 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::ZeroPageX),
+            0xF4 => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::ZeroPageX),
+            0x0C => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::Absolute),
+            0x1C => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::AbsoluteX),
+            0x3C => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::AbsoluteX),
+            0x5C => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::AbsoluteX),
+            0x7C => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::AbsoluteX),
+            0xDC => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::AbsoluteX),
+            0xFC => OpCode::from_parsed_instr(Instruction::UNOP, AddressMode::AbsoluteX),
+
+            0xA7 => OpCode::from_parsed_instr(Instruction::ULAX, AddressMode::ZeroPage),
+            0xB7 => OpCode::from_parsed_instr(Instruction::ULAX, AddressMode::ZeroPageY),
+            0xAF => OpCode::from_parsed_instr(Instruction::ULAX, AddressMode::Absolute),
+            0xBF => OpCode::from_parsed_instr(Instruction::ULAX, AddressMode::AbsoluteY),
+            0xA3 => OpCode::from_parsed_instr(Instruction::ULAX, AddressMode::IndirectZeroPageX),
+            0xB3 => OpCode::from_parsed_instr(Instruction::ULAX, AddressMode::IndirectZeroPageY),
+
+            0x87 => OpCode::from_parsed_instr(Instruction::USAX, AddressMode::ZeroPage),
+            0x97 => OpCode::from_parsed_instr(Instruction::USAX, AddressMode::ZeroPageY),
+            0x8f => OpCode::from_parsed_instr(Instruction::USAX, AddressMode::Absolute),
+            0x83 => OpCode::from_parsed_instr(Instruction::USAX, AddressMode::IndirectZeroPageX),
+
+            0xEB => OpCode::from_parsed_instr(Instruction::USBC, AddressMode::Immediate),
+
+            _ => OpCode::from_parsed_instr(Instruction::Unknown, AddressMode::Unknown),
+        }
+    }
+
+    /// Produce a from_parsed_instr `OpCode` from a parsed `Instruction` and `AddressMode`.
+    fn from_parsed_instr(instr: Instruction, mode: AddressMode) -> Self {
         let mut page_crossing_cycle = false;
         let nb_cycles = match instr {
             Instruction::BRK => 7,
@@ -120,318 +446,6 @@ impl OpCode {
     }
 }
 
-pub(super) fn parse(instr: u8) -> OpCode {
-    // TODO as an array/map insteady?
-    match instr {
-        // ADC
-        0x69 => OpCode::new(Instruction::ADC, AddressMode::Immediate),
-        0x65 => OpCode::new(Instruction::ADC, AddressMode::ZeroPage),
-        0x75 => OpCode::new(Instruction::ADC, AddressMode::ZeroPageX),
-        0x6D => OpCode::new(Instruction::ADC, AddressMode::Absolute),
-        0x7D => OpCode::new(Instruction::ADC, AddressMode::AbsoluteX),
-        0x79 => OpCode::new(Instruction::ADC, AddressMode::AbsoluteY),
-        0x61 => OpCode::new(Instruction::ADC, AddressMode::IndirectZeroPageX),
-        0x71 => OpCode::new(Instruction::ADC, AddressMode::IndirectZeroPageY),
-
-        // AND
-        0x29 => OpCode::new(Instruction::AND, AddressMode::Immediate),
-        0x25 => OpCode::new(Instruction::AND, AddressMode::ZeroPage),
-        0x35 => OpCode::new(Instruction::AND, AddressMode::ZeroPageX),
-        0x2D => OpCode::new(Instruction::AND, AddressMode::Absolute),
-        0x3D => OpCode::new(Instruction::AND, AddressMode::AbsoluteX),
-        0x39 => OpCode::new(Instruction::AND, AddressMode::AbsoluteY),
-        0x21 => OpCode::new(Instruction::AND, AddressMode::IndirectZeroPageX),
-        0x31 => OpCode::new(Instruction::AND, AddressMode::IndirectZeroPageY),
-
-        // ASL
-        0x0A => OpCode::new(Instruction::ASL, AddressMode::Accumulator),
-        0x06 => OpCode::new(Instruction::ASL, AddressMode::ZeroPage),
-        0x16 => OpCode::new(Instruction::ASL, AddressMode::ZeroPageX),
-        0x0E => OpCode::new(Instruction::ASL, AddressMode::Absolute),
-        0x1E => OpCode::new(Instruction::ASL, AddressMode::AbsoluteX),
-
-        0x90 => OpCode::new(Instruction::BCC, AddressMode::Relative),
-
-        0xB0 => OpCode::new(Instruction::BCS, AddressMode::Relative),
-
-        0xF0 => OpCode::new(Instruction::BEQ, AddressMode::Relative),
-
-        // BIT
-        0x24 => OpCode::new(Instruction::BIT, AddressMode::ZeroPage),
-        0x2C => OpCode::new(Instruction::BIT, AddressMode::Absolute),
-
-        0x30 => OpCode::new(Instruction::BMI, AddressMode::Relative),
-
-        0xD0 => OpCode::new(Instruction::BNE, AddressMode::Relative),
-
-        0x10 => OpCode::new(Instruction::BPL, AddressMode::Relative),
-
-        0x00 => OpCode::new(Instruction::BRK, AddressMode::Implied),
-
-        0x50 => OpCode::new(Instruction::BVC, AddressMode::Relative),
-
-        0x70 => OpCode::new(Instruction::BVS, AddressMode::Relative),
-
-        0x18 => OpCode::new(Instruction::CLC, AddressMode::Implied),
-
-        0xD8 => OpCode::new(Instruction::CLD, AddressMode::Implied),
-
-        0x58 => OpCode::new(Instruction::CLI, AddressMode::Implied),
-
-        0xB8 => OpCode::new(Instruction::CLV, AddressMode::Implied),
-
-        // CMP
-        0xC9 => OpCode::new(Instruction::CMP, AddressMode::Immediate),
-        0xC5 => OpCode::new(Instruction::CMP, AddressMode::ZeroPage),
-        0xD5 => OpCode::new(Instruction::CMP, AddressMode::ZeroPageX),
-        0xCD => OpCode::new(Instruction::CMP, AddressMode::Absolute),
-        0xDD => OpCode::new(Instruction::CMP, AddressMode::AbsoluteX),
-        0xD9 => OpCode::new(Instruction::CMP, AddressMode::AbsoluteY),
-        0xC1 => OpCode::new(Instruction::CMP, AddressMode::IndirectZeroPageX),
-        0xD1 => OpCode::new(Instruction::CMP, AddressMode::IndirectZeroPageY),
-
-        // CPX
-        0xE0 => OpCode::new(Instruction::CPX, AddressMode::Immediate),
-        0xE4 => OpCode::new(Instruction::CPX, AddressMode::ZeroPage),
-        0xEC => OpCode::new(Instruction::CPX, AddressMode::Absolute),
-
-        // CPY
-        0xC0 => OpCode::new(Instruction::CPY, AddressMode::Immediate),
-        0xC4 => OpCode::new(Instruction::CPY, AddressMode::ZeroPage),
-        0xCC => OpCode::new(Instruction::CPY, AddressMode::Absolute),
-
-        // DEC
-        0xC6 => OpCode::new(Instruction::DEC, AddressMode::ZeroPage),
-        0xD6 => OpCode::new(Instruction::DEC, AddressMode::ZeroPageX),
-        0xCE => OpCode::new(Instruction::DEC, AddressMode::Absolute),
-        0xDE => OpCode::new(Instruction::DEC, AddressMode::AbsoluteX),
-
-        0xCA => OpCode::new(Instruction::DEX, AddressMode::Implied),
-
-        0x88 => OpCode::new(Instruction::DEY, AddressMode::Implied),
-
-        // EOR
-        0x49 => OpCode::new(Instruction::EOR, AddressMode::Immediate),
-        0x45 => OpCode::new(Instruction::EOR, AddressMode::ZeroPage),
-        0x55 => OpCode::new(Instruction::EOR, AddressMode::ZeroPageX),
-        0x4D => OpCode::new(Instruction::EOR, AddressMode::Absolute),
-        0x5D => OpCode::new(Instruction::EOR, AddressMode::AbsoluteX),
-        0x59 => OpCode::new(Instruction::EOR, AddressMode::AbsoluteY),
-        0x41 => OpCode::new(Instruction::EOR, AddressMode::IndirectZeroPageX),
-        0x51 => OpCode::new(Instruction::EOR, AddressMode::IndirectZeroPageY),
-
-        // INC
-        0xE6 => OpCode::new(Instruction::INC, AddressMode::ZeroPage),
-        0xF6 => OpCode::new(Instruction::INC, AddressMode::ZeroPageX),
-        0xEE => OpCode::new(Instruction::INC, AddressMode::Absolute),
-        0xFE => OpCode::new(Instruction::INC, AddressMode::AbsoluteX),
-
-        0xE8 => OpCode::new(Instruction::INX, AddressMode::Implied),
-
-        0xC8 => OpCode::new(Instruction::INY, AddressMode::Implied),
-
-        // JMP
-        0x4C => OpCode::new(Instruction::JMP, AddressMode::Absolute),
-        0x6C => OpCode::new(Instruction::JMP, AddressMode::Indirect),
-
-        0x20 => OpCode::new(Instruction::JSR, AddressMode::Absolute),
-
-        // LDA
-        0xA9 => OpCode::new(Instruction::LDA, AddressMode::Immediate),
-        0xA5 => OpCode::new(Instruction::LDA, AddressMode::ZeroPage),
-        0xB5 => OpCode::new(Instruction::LDA, AddressMode::ZeroPageX),
-        0xAD => OpCode::new(Instruction::LDA, AddressMode::Absolute),
-        0xBD => OpCode::new(Instruction::LDA, AddressMode::AbsoluteX),
-        0xB9 => OpCode::new(Instruction::LDA, AddressMode::AbsoluteY),
-        0xA1 => OpCode::new(Instruction::LDA, AddressMode::IndirectZeroPageX),
-        0xB1 => OpCode::new(Instruction::LDA, AddressMode::IndirectZeroPageY),
-
-        // LDX
-        0xA2 => OpCode::new(Instruction::LDX, AddressMode::Immediate),
-        0xA6 => OpCode::new(Instruction::LDX, AddressMode::ZeroPage),
-        0xB6 => OpCode::new(Instruction::LDX, AddressMode::ZeroPageY),
-        0xAE => OpCode::new(Instruction::LDX, AddressMode::Absolute),
-        0xBE => OpCode::new(Instruction::LDX, AddressMode::AbsoluteY),
-
-        // LDY
-        0xA0 => OpCode::new(Instruction::LDY, AddressMode::Immediate),
-        0xA4 => OpCode::new(Instruction::LDY, AddressMode::ZeroPage),
-        0xB4 => OpCode::new(Instruction::LDY, AddressMode::ZeroPageX),
-        0xAC => OpCode::new(Instruction::LDY, AddressMode::Absolute),
-        0xBC => OpCode::new(Instruction::LDY, AddressMode::AbsoluteX),
-
-        // LSR
-        0x4A => OpCode::new(Instruction::LSR, AddressMode::Accumulator),
-        0x46 => OpCode::new(Instruction::LSR, AddressMode::ZeroPage),
-        0x56 => OpCode::new(Instruction::LSR, AddressMode::ZeroPageX),
-        0x4E => OpCode::new(Instruction::LSR, AddressMode::Absolute),
-        0x5E => OpCode::new(Instruction::LSR, AddressMode::AbsoluteX),
-
-        0xEA => OpCode::new(Instruction::NOP, AddressMode::Implied),
-
-        // ORA
-        0x09 => OpCode::new(Instruction::ORA, AddressMode::Immediate),
-        0x05 => OpCode::new(Instruction::ORA, AddressMode::ZeroPage),
-        0x15 => OpCode::new(Instruction::ORA, AddressMode::ZeroPageX),
-        0x0D => OpCode::new(Instruction::ORA, AddressMode::Absolute),
-        0x1D => OpCode::new(Instruction::ORA, AddressMode::AbsoluteX),
-        0x19 => OpCode::new(Instruction::ORA, AddressMode::AbsoluteY),
-        0x01 => OpCode::new(Instruction::ORA, AddressMode::IndirectZeroPageX),
-        0x11 => OpCode::new(Instruction::ORA, AddressMode::IndirectZeroPageY),
-
-        0x48 => OpCode::new(Instruction::PHA, AddressMode::Implied),
-
-        0x08 => OpCode::new(Instruction::PHP, AddressMode::Implied),
-
-        0x68 => OpCode::new(Instruction::PLA, AddressMode::Implied),
-
-        0x28 => OpCode::new(Instruction::PLP, AddressMode::Implied),
-
-        // ROL
-        0x2A => OpCode::new(Instruction::ROL, AddressMode::Accumulator),
-        0x26 => OpCode::new(Instruction::ROL, AddressMode::ZeroPage),
-        0x36 => OpCode::new(Instruction::ROL, AddressMode::ZeroPageX),
-        0x2E => OpCode::new(Instruction::ROL, AddressMode::Absolute),
-        0x3E => OpCode::new(Instruction::ROL, AddressMode::AbsoluteX),
-
-        // ROR
-        0x6A => OpCode::new(Instruction::ROR, AddressMode::Accumulator),
-        0x66 => OpCode::new(Instruction::ROR, AddressMode::ZeroPage),
-        0x76 => OpCode::new(Instruction::ROR, AddressMode::ZeroPageX),
-        0x6E => OpCode::new(Instruction::ROR, AddressMode::Absolute),
-        0x7E => OpCode::new(Instruction::ROR, AddressMode::AbsoluteX),
-
-        0x40 => OpCode::new(Instruction::RTI, AddressMode::Implied),
-
-        0x60 => OpCode::new(Instruction::RTS, AddressMode::Implied),
-
-        // SBC
-        0xE9 => OpCode::new(Instruction::SBC, AddressMode::Immediate),
-        0xE5 => OpCode::new(Instruction::SBC, AddressMode::ZeroPage),
-        0xF5 => OpCode::new(Instruction::SBC, AddressMode::ZeroPageX),
-        0xED => OpCode::new(Instruction::SBC, AddressMode::Absolute),
-        0xFD => OpCode::new(Instruction::SBC, AddressMode::AbsoluteX),
-        0xF9 => OpCode::new(Instruction::SBC, AddressMode::AbsoluteY),
-        0xE1 => OpCode::new(Instruction::SBC, AddressMode::IndirectZeroPageX),
-        0xF1 => OpCode::new(Instruction::SBC, AddressMode::IndirectZeroPageY),
-
-        0x38 => OpCode::new(Instruction::SEC, AddressMode::Implied),
-
-        0xF8 => OpCode::new(Instruction::SED, AddressMode::Implied),
-
-        0x78 => OpCode::new(Instruction::SEI, AddressMode::Implied),
-
-        // STA
-        0x85 => OpCode::new(Instruction::STA, AddressMode::ZeroPage),
-        0x95 => OpCode::new(Instruction::STA, AddressMode::ZeroPageX),
-        0x8D => OpCode::new(Instruction::STA, AddressMode::Absolute),
-        0x9D => OpCode::new(Instruction::STA, AddressMode::AbsoluteX),
-        0x99 => OpCode::new(Instruction::STA, AddressMode::AbsoluteY),
-        0x81 => OpCode::new(Instruction::STA, AddressMode::IndirectZeroPageX),
-        0x91 => OpCode::new(Instruction::STA, AddressMode::IndirectZeroPageY),
-
-        // STX
-        0x86 => OpCode::new(Instruction::STX, AddressMode::ZeroPage),
-        0x96 => OpCode::new(Instruction::STX, AddressMode::ZeroPageY),
-        0x8E => OpCode::new(Instruction::STX, AddressMode::Absolute),
-
-        // STY
-        0x84 => OpCode::new(Instruction::STY, AddressMode::ZeroPage),
-        0x94 => OpCode::new(Instruction::STY, AddressMode::ZeroPageX),
-        0x8C => OpCode::new(Instruction::STY, AddressMode::Absolute),
-
-        0xAA => OpCode::new(Instruction::TAX, AddressMode::Implied),
-
-        0xA8 => OpCode::new(Instruction::TAY, AddressMode::Implied),
-
-        0xBA => OpCode::new(Instruction::TSX, AddressMode::Implied),
-
-        0x8A => OpCode::new(Instruction::TXA, AddressMode::Implied),
-
-        0x9A => OpCode::new(Instruction::TXS, AddressMode::Implied),
-
-        0x98 => OpCode::new(Instruction::TYA, AddressMode::Implied),
-
-        // Unofficial ones
-        0xC7 => OpCode::new(Instruction::UDCP, AddressMode::ZeroPage),
-        0xD7 => OpCode::new(Instruction::UDCP, AddressMode::ZeroPageX),
-        0xCF => OpCode::new(Instruction::UDCP, AddressMode::Absolute),
-        0xDF => OpCode::new(Instruction::UDCP, AddressMode::AbsoluteX),
-        0xDB => OpCode::new(Instruction::UDCP, AddressMode::AbsoluteY),
-        0xC3 => OpCode::new(Instruction::UDCP, AddressMode::IndirectZeroPageX),
-        0xD3 => OpCode::new(Instruction::UDCP, AddressMode::IndirectZeroPageY),
-
-        0x27 => OpCode::new(Instruction::URLA, AddressMode::ZeroPage),
-        0x37 => OpCode::new(Instruction::URLA, AddressMode::ZeroPageX),
-        0x2F => OpCode::new(Instruction::URLA, AddressMode::Absolute),
-        0x3F => OpCode::new(Instruction::URLA, AddressMode::AbsoluteX),
-        0x3B => OpCode::new(Instruction::URLA, AddressMode::AbsoluteY),
-        0x23 => OpCode::new(Instruction::URLA, AddressMode::IndirectZeroPageX),
-        0x33 => OpCode::new(Instruction::URLA, AddressMode::IndirectZeroPageY),
-
-        0x07 => OpCode::new(Instruction::USLO, AddressMode::ZeroPage),
-        0x17 => OpCode::new(Instruction::USLO, AddressMode::ZeroPageX),
-        0x0F => OpCode::new(Instruction::USLO, AddressMode::Absolute),
-        0x1F => OpCode::new(Instruction::USLO, AddressMode::AbsoluteX),
-        0x1B => OpCode::new(Instruction::USLO, AddressMode::AbsoluteY),
-        0x03 => OpCode::new(Instruction::USLO, AddressMode::IndirectZeroPageX),
-        0x13 => OpCode::new(Instruction::USLO, AddressMode::IndirectZeroPageY),
-
-        0x47 => OpCode::new(Instruction::USRE, AddressMode::ZeroPage),
-        0x57 => OpCode::new(Instruction::USRE, AddressMode::ZeroPageX),
-        0x4F => OpCode::new(Instruction::USRE, AddressMode::Absolute),
-        0x5F => OpCode::new(Instruction::USRE, AddressMode::AbsoluteX),
-        0x5B => OpCode::new(Instruction::USRE, AddressMode::AbsoluteY),
-        0x43 => OpCode::new(Instruction::USRE, AddressMode::IndirectZeroPageX),
-        0x53 => OpCode::new(Instruction::USRE, AddressMode::IndirectZeroPageY),
-
-        // UNOP
-        0x1A => OpCode::new(Instruction::UNOP, AddressMode::Implied),
-        0x3A => OpCode::new(Instruction::UNOP, AddressMode::Implied),
-        0x5A => OpCode::new(Instruction::UNOP, AddressMode::Implied),
-        0x7A => OpCode::new(Instruction::UNOP, AddressMode::Implied),
-        0xDA => OpCode::new(Instruction::UNOP, AddressMode::Implied),
-        0xFA => OpCode::new(Instruction::UNOP, AddressMode::Implied),
-        0x80 => OpCode::new(Instruction::UNOP, AddressMode::Immediate),
-        0x82 => OpCode::new(Instruction::UNOP, AddressMode::Immediate),
-        0x89 => OpCode::new(Instruction::UNOP, AddressMode::Immediate),
-        0xC2 => OpCode::new(Instruction::UNOP, AddressMode::Immediate),
-        0xE2 => OpCode::new(Instruction::UNOP, AddressMode::Immediate),
-        0x04 => OpCode::new(Instruction::UNOP, AddressMode::ZeroPage),
-        0x44 => OpCode::new(Instruction::UNOP, AddressMode::ZeroPage),
-        0x64 => OpCode::new(Instruction::UNOP, AddressMode::ZeroPage),
-        0x14 => OpCode::new(Instruction::UNOP, AddressMode::ZeroPageX),
-        0x34 => OpCode::new(Instruction::UNOP, AddressMode::ZeroPageX),
-        0x54 => OpCode::new(Instruction::UNOP, AddressMode::ZeroPageX),
-        0x74 => OpCode::new(Instruction::UNOP, AddressMode::ZeroPageX),
-        0xD4 => OpCode::new(Instruction::UNOP, AddressMode::ZeroPageX),
-        0xF4 => OpCode::new(Instruction::UNOP, AddressMode::ZeroPageX),
-        0x0C => OpCode::new(Instruction::UNOP, AddressMode::Absolute),
-        0x1C => OpCode::new(Instruction::UNOP, AddressMode::AbsoluteX),
-        0x3C => OpCode::new(Instruction::UNOP, AddressMode::AbsoluteX),
-        0x5C => OpCode::new(Instruction::UNOP, AddressMode::AbsoluteX),
-        0x7C => OpCode::new(Instruction::UNOP, AddressMode::AbsoluteX),
-        0xDC => OpCode::new(Instruction::UNOP, AddressMode::AbsoluteX),
-        0xFC => OpCode::new(Instruction::UNOP, AddressMode::AbsoluteX),
-
-        0xA7 => OpCode::new(Instruction::ULAX, AddressMode::ZeroPage),
-        0xB7 => OpCode::new(Instruction::ULAX, AddressMode::ZeroPageY),
-        0xAF => OpCode::new(Instruction::ULAX, AddressMode::Absolute),
-        0xBF => OpCode::new(Instruction::ULAX, AddressMode::AbsoluteY),
-        0xA3 => OpCode::new(Instruction::ULAX, AddressMode::IndirectZeroPageX),
-        0xB3 => OpCode::new(Instruction::ULAX, AddressMode::IndirectZeroPageY),
-
-        0x87 => OpCode::new(Instruction::USAX, AddressMode::ZeroPage),
-        0x97 => OpCode::new(Instruction::USAX, AddressMode::ZeroPageY),
-        0x8f => OpCode::new(Instruction::USAX, AddressMode::Absolute),
-        0x83 => OpCode::new(Instruction::USAX, AddressMode::IndirectZeroPageX),
-
-        0xEB => OpCode::new(Instruction::USBC, AddressMode::Immediate),
-
-        _ => OpCode::new(Instruction::Unknown, AddressMode::Unknown),
-    }
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum AddressMode {
     /// For Unrecognized instructions
@@ -534,6 +548,7 @@ pub(super) enum AddressMode {
     Indirect,
 }
 
+/// Enumeration of all the OpCodes, official or not, the NES CPU microprocessor has.
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Instruction {
