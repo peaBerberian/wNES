@@ -128,4 +128,8 @@ impl NesBus {
     pub(crate) fn tick(&mut self, cycles: u8) {
        self.ppu.tick(cycles as u32 * 3);
    }
+
+    pub(crate) fn should_handle_nmi_interrupt(&mut self) -> bool {
+        self.ppu.should_handle_nmi_interrupt()
+    }
 }

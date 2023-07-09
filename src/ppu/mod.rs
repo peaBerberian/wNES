@@ -61,6 +61,8 @@ pub(crate) struct NesPpu {
     /// PPU address register
     /// https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
     reg_addr: PpuAddrRegister,
+
+    unhandled_nmi_interrupt: bool,
 }
 
 impl NesPpu {
@@ -80,6 +82,7 @@ impl NesPpu {
             reg_mask: PpuMaskRegister::new(),
             reg_scroll: PpuScrollRegister::new(),
             reg_status: PpuStatusRegister::new(),
+            unhandled_nmi_interrupt: true,
         }
     }
 
@@ -206,16 +209,26 @@ impl NesPpu {
            if self.curr_scanline == 241 {
                if self.reg_ctrl.generate_vblank_nmi() {
                    self.reg_status.set_in_vblank(true);
-                   todo!("Should trigger NMI interrupt")
+                   self.unhandled_nmi_interrupt = true;
                }
            }
 
            if self.curr_scanline >= 262 {
                self.curr_scanline = 0;
+               self.unhandled_nmi_interrupt = false;
                self.reg_status.set_in_vblank(false);
                return true;
            }
        }
        return false;
    }
+
+    pub(crate) fn should_handle_nmi_interrupt(&mut self) -> bool {
+        if self.unhandled_nmi_interrupt {
+            self.unhandled_nmi_interrupt = false;
+            true
+        } else {
+            false
+        }
+    }
 }

@@ -1,16 +1,14 @@
 /// # CPU emulation
 ///
 /// Emulates the NES 6502-family microprocessor.
-
 mod debug;
 mod flags;
 mod op_code;
 
-use op_code::{AddressMode, Instruction, OpCode};
 use crate::bus::NesBus;
+use op_code::{AddressMode, Instruction, OpCode};
 
 pub(crate) struct CpuComputationResult {
-    pub(crate) cycles: u8,
     pub(crate) brk: bool,
 }
 
@@ -65,6 +63,10 @@ impl<'a> NesCpu<'a> {
     }
 
     pub(super) fn next_op(&mut self) -> Result<CpuComputationResult, AddressComputationError> {
+        if self.bus.should_handle_nmi_interrupt() {
+            self.on_nmi_interrupt();
+        }
+
         if cfg!(feature = "debug_cpu") {
             use super::cpu::debug::*;
             let format = format_instr(self.bus, self.program_counter, self.reg_x, self.reg_y);
@@ -81,127 +83,126 @@ impl<'a> NesCpu<'a> {
                 self.program_counter, format.hex, format.fmt, reg_status
             );
         }
+
         let op_code = self.bus.read(self.program_counter);
         let parsed_op = OpCode::new(op_code);
         self.program_counter += 1;
+
         match (parsed_op.instr(), parsed_op.mode()) {
-            (Instruction::ADC, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::ADC, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_adc(val);
             }
-            (Instruction::AND, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::AND, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_and(val);
             }
             (Instruction::ASL, AddressMode::Accumulator) => self.exec_asl_acc(),
-            (Instruction::ASL, mode) => {
-                let addr = self.compute_addr(mode)?;
+            (Instruction::ASL, _) => {
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_asl_mem(addr);
             }
             (Instruction::BCC, AddressMode::Relative) => {
-                let addr = self.compute_addr(AddressMode::Relative)?;
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_bcc(addr);
             }
             (Instruction::BCS, AddressMode::Relative) => {
-                let addr = self.compute_addr(AddressMode::Relative)?;
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_bcs(addr);
             }
             (Instruction::BEQ, AddressMode::Relative) => {
-                let addr = self.compute_addr(AddressMode::Relative)?;
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_beq(addr);
             }
-            (Instruction::BIT, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::BIT, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_bit(val);
             }
             (Instruction::BMI, AddressMode::Relative) => {
-                let addr = self.compute_addr(AddressMode::Relative)?;
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_bmi(addr);
             }
             (Instruction::BNE, AddressMode::Relative) => {
-                let addr = self.compute_addr(AddressMode::Relative)?;
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_bne(addr);
             }
             (Instruction::BPL, AddressMode::Relative) => {
-                let addr = self.compute_addr(AddressMode::Relative)?;
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_bpl(addr);
             }
             (Instruction::BRK, AddressMode::Implied) => {
-                self.exec_brk();
+                self.on_brk_interrupt();
                 // TODO normally we should just continue execution from 0xFFFE
-                return Ok(CpuComputationResult {
-                    cycles: parsed_op.nb_cycles(),
-                    brk: true,
-                });
+                return Ok(CpuComputationResult { brk: true });
             }
             (Instruction::BVC, AddressMode::Relative) => {
-                let addr = self.compute_addr(AddressMode::Relative)?;
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_bvc(addr);
             }
             (Instruction::BVS, AddressMode::Relative) => {
-                let addr = self.compute_addr(AddressMode::Relative)?;
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_bvs(addr);
             }
             (Instruction::CLC, AddressMode::Implied) => self.exec_clc(),
             (Instruction::CLD, AddressMode::Implied) => self.exec_cld(),
             (Instruction::CLI, AddressMode::Implied) => self.exec_cli(),
             (Instruction::CLV, AddressMode::Implied) => self.exec_clv(),
-            (Instruction::CMP, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::CMP, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_cmp(val);
             }
-            (Instruction::CPX, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::CPX, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_cpx(val);
             }
-            (Instruction::CPY, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::CPY, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_cpy(val);
             }
-            (Instruction::DEC, mode) => {
-                let addr = self.compute_addr(mode)?;
+            (Instruction::DEC, _) => {
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_dec(addr);
             }
             (Instruction::DEX, AddressMode::Implied) => self.exec_dex(),
             (Instruction::DEY, AddressMode::Implied) => self.exec_dey(),
-            (Instruction::EOR, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::EOR, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_eor(val);
             }
-            (Instruction::INC, mode) => {
-                let addr = self.compute_addr(mode)?;
+            (Instruction::INC, _) => {
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_inc(addr);
             }
             (Instruction::INX, AddressMode::Implied) => self.exec_inx(),
             (Instruction::INY, AddressMode::Implied) => self.exec_iny(),
-            (Instruction::JMP, mode) => {
-                let addr = self.compute_addr(mode)?;
+            (Instruction::JMP, _) => {
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_jmp(addr);
             }
-            (Instruction::JSR, mode) => {
-                let addr = self.compute_addr(mode)?;
+            (Instruction::JSR, _) => {
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_jsr(addr);
             }
-            (Instruction::LDA, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::LDA, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_lda(val);
             }
-            (Instruction::LDX, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::LDX, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_ldx(val);
             }
-            (Instruction::LDY, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::LDY, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_ldy(val);
             }
             (Instruction::LSR, AddressMode::Accumulator) => self.exec_lsr_acc(),
-            (Instruction::LSR, mode) => {
-                let addr = self.compute_addr(mode)?;
+            (Instruction::LSR, _) => {
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_lsr_mem(addr);
             }
             (Instruction::NOP, AddressMode::Implied) => {}
-            (Instruction::ORA, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::ORA, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_ora(val);
             }
             (Instruction::PHA, AddressMode::Implied) => self.exec_pha(),
@@ -209,34 +210,34 @@ impl<'a> NesCpu<'a> {
             (Instruction::PLA, AddressMode::Implied) => self.exec_pla(),
             (Instruction::PLP, AddressMode::Implied) => self.exec_plp(),
             (Instruction::ROL, AddressMode::Accumulator) => self.exec_rol_acc(),
-            (Instruction::ROL, mode) => {
-                let addr = self.compute_addr(mode)?;
+            (Instruction::ROL, _) => {
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_rol_mem(addr);
             }
             (Instruction::ROR, AddressMode::Accumulator) => self.exec_ror_acc(),
-            (Instruction::ROR, mode) => {
-                let addr = self.compute_addr(mode)?;
+            (Instruction::ROR, _) => {
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_ror_mem(addr);
             }
             (Instruction::RTI, AddressMode::Implied) => self.exec_rti(),
             (Instruction::RTS, AddressMode::Implied) => self.exec_rts(),
-            (Instruction::SBC, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::SBC, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_sbc(val);
             }
             (Instruction::SEC, AddressMode::Implied) => self.exec_sec(),
             (Instruction::SED, AddressMode::Implied) => self.exec_sed(),
             (Instruction::SEI, AddressMode::Implied) => self.exec_sei(),
-            (Instruction::STA, mode) => {
-                let addr = self.compute_addr(mode)?;
+            (Instruction::STA, _) => {
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_sta(addr);
             }
-            (Instruction::STX, mode) => {
-                let addr = self.compute_addr(mode)?;
+            (Instruction::STX, _) => {
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_stx(addr);
             }
-            (Instruction::STY, mode) => {
-                let addr = self.compute_addr(mode)?;
+            (Instruction::STY, _) => {
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_sty(addr);
             }
             (Instruction::TAX, AddressMode::Implied) => self.exec_tax(),
@@ -246,24 +247,24 @@ impl<'a> NesCpu<'a> {
             (Instruction::TXS, AddressMode::Implied) => self.exec_txs(),
             (Instruction::TYA, AddressMode::Implied) => self.exec_tya(),
 
-            (Instruction::UDCP, mode) => {
-                let addr = self.compute_addr(mode)?;
+            (Instruction::UDCP, _) => {
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_unofficial_dcp(addr);
             }
-            (Instruction::ULAX, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::ULAX, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_unofficial_lax(val);
             }
             (Instruction::UNOP, AddressMode::Implied) => {}
-            (Instruction::UNOP, mode) => {
-                let _ = self.compute_addr(mode)?;
+            (Instruction::UNOP, _) => {
+                let _ = self.compute_addr(&parsed_op)?;
             }
-            (Instruction::USAX, mode) => {
-                let addr = self.compute_addr(mode)?;
+            (Instruction::USAX, _) => {
+                let addr = self.compute_addr(&parsed_op)?;
                 self.exec_unofficial_sax(addr);
             }
-            (Instruction::USBC, mode) => {
-                let val = self.operand_value(mode)?;
+            (Instruction::USBC, _) => {
+                let val = self.operand_value(&parsed_op)?;
                 self.exec_sbc(val);
             }
             _ => {
@@ -272,11 +273,10 @@ impl<'a> NesCpu<'a> {
                 }
             }
         };
-        self.bus.tick(parsed_op.nb_cycles());
-        Ok(CpuComputationResult {
-            cycles: parsed_op.nb_cycles(),
-            brk: false,
-        })
+
+        let cycles = parsed_op.nb_cycles();
+        self.bus.tick(cycles);
+        Ok(CpuComputationResult { brk: false })
     }
 
     fn read_u16_at(&mut self, addr: u16) -> u16 {
@@ -317,8 +317,11 @@ impl<'a> NesCpu<'a> {
         hi << 8 | lo
     }
 
-    fn compute_addr(&mut self, mode: AddressMode) -> Result<u16, AddressComputationError> {
-        match mode {
+    fn compute_addr(
+        &mut self,
+        op_code: &OpCode
+    ) -> Result<u16, AddressComputationError> {
+        match op_code.mode() {
             AddressMode::Immediate => {
                 let pc = self.program_counter;
                 self.program_counter += 1;
@@ -344,13 +347,21 @@ impl<'a> NesCpu<'a> {
                 let current_counter = self.program_counter;
                 let val = self.read_u16_at(current_counter);
                 self.program_counter += 2;
-                Ok(val.wrapping_add(self.reg_x as u16))
+                let addr = val.wrapping_add(self.reg_x as u16);
+                if op_code.page_crossing_cycle() && is_page_crossed(val, addr) {
+                    self.bus.tick(1);
+                }
+                Ok(addr)
             }
             AddressMode::AbsoluteY => {
                 let current_counter = self.program_counter;
                 let val = self.read_u16_at(current_counter);
                 self.program_counter += 2;
-                Ok(val.wrapping_add(self.reg_y as u16))
+                let addr = val.wrapping_add(self.reg_y as u16);
+                if op_code.page_crossing_cycle() && is_page_crossed(val, addr) {
+                    self.bus.tick(1);
+                }
+                Ok(addr)
             }
             AddressMode::ZeroPageX => {
                 let current_counter = self.program_counter;
@@ -379,7 +390,11 @@ impl<'a> NesCpu<'a> {
                 self.program_counter += 1;
                 let base_addr = u16::from(self.read_u8_at(val as u16))
                     | u16::from(self.read_u8_at(val.wrapping_add(1) as u16)) << 8;
-                Ok(base_addr.wrapping_add(self.reg_y as u16))
+                let addr = base_addr.wrapping_add(self.reg_y as u16);
+                if op_code.page_crossing_cycle() && is_page_crossed(base_addr, addr) {
+                    self.bus.tick(1);
+                }
+                Ok(addr)
             }
             AddressMode::Relative => {
                 let current_counter = self.program_counter;
@@ -413,8 +428,11 @@ impl<'a> NesCpu<'a> {
         }
     }
 
-    fn operand_value(&mut self, mode: AddressMode) -> Result<u8, AddressComputationError> {
-        let addr_ope = self.compute_addr(mode)?;
+    fn operand_value(
+        &mut self,
+        op_code: &OpCode
+    ) -> Result<u8, AddressComputationError> {
+        let addr_ope = self.compute_addr(op_code)?;
         Ok(self.read_u8_at(addr_ope))
     }
 
@@ -461,21 +479,15 @@ impl<'a> NesCpu<'a> {
     }
 
     fn exec_bcc(&mut self, addr: u16) {
-        if !self.flags.carry() {
-            self.program_counter = addr;
-        }
+        self.branch_if(!self.flags.carry(), addr);
     }
 
     fn exec_bcs(&mut self, addr: u16) {
-        if self.flags.carry() {
-            self.program_counter = addr;
-        }
+        self.branch_if(self.flags.carry(), addr);
     }
 
     fn exec_beq(&mut self, addr: u16) {
-        if self.flags.zero() {
-            self.program_counter = addr;
-        }
+        self.branch_if(self.flags.zero(), addr);
     }
 
     fn exec_bit(&mut self, val: u8) {
@@ -486,39 +498,23 @@ impl<'a> NesCpu<'a> {
     }
 
     fn exec_bmi(&mut self, addr: u16) {
-        if self.flags.negative() {
-            self.program_counter = addr;
-        }
+        self.branch_if(self.flags.negative(), addr);
     }
 
     fn exec_bne(&mut self, addr: u16) {
-        if !self.flags.zero() {
-            self.program_counter = addr;
-        }
+        self.branch_if(!self.flags.zero(), addr);
     }
 
     fn exec_bpl(&mut self, addr: u16) {
-        if !self.flags.negative() {
-            self.program_counter = addr;
-        }
-    }
-
-    fn exec_brk(&mut self) {
-        self.push_stack_u16(self.program_counter);
-        self.push_stack_u8(self.flags.as_byte(true));
-        self.program_counter = self.read_u16_at(0xFFFE);
+        self.branch_if(!self.flags.negative(), addr);
     }
 
     fn exec_bvc(&mut self, addr: u16) {
-        if !self.flags.overflow() {
-            self.program_counter = addr;
-        }
+        self.branch_if(!self.flags.overflow(), addr);
     }
 
     fn exec_bvs(&mut self, addr: u16) {
-        if self.flags.overflow() {
-            self.program_counter = addr;
-        }
+        self.branch_if(self.flags.overflow(), addr);
     }
 
     fn exec_clc(&mut self) {
@@ -844,6 +840,38 @@ impl<'a> NesCpu<'a> {
         let res = self.reg_a & self.reg_x;
         self.write_u8_at(addr, res);
     }
+
+    fn branch_if(&mut self, cond: bool, addr: u16) {
+        if cond {
+            self.branch_to(addr);
+        }
+    }
+
+    fn branch_to(&mut self, addr: u16) {
+        self.bus.tick(1);
+        if is_page_crossed(self.program_counter.wrapping_add(1), addr) {
+            self.bus.tick(1);
+        }
+        self.program_counter = addr;
+    }
+
+    fn on_nmi_interrupt(&mut self) {
+        self.push_stack_u16(self.program_counter);
+        let flag = self.flags.as_byte(true);
+        self.push_stack_u8(flag);
+        self.flags.set_interrupt_disable(true);
+        self.bus.tick(2);
+        self.program_counter = self.read_u16_at(0xFFFA);
+    }
+
+    fn on_brk_interrupt(&mut self) {
+        self.push_stack_u16(self.program_counter);
+        let flag = self.flags.as_byte(true);
+        self.push_stack_u8(flag);
+        self.flags.set_interrupt_disable(true);
+        self.bus.tick(1);
+        self.program_counter = self.read_u16_at(0xFFFE);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -851,4 +879,8 @@ pub(super) enum AddressComputationError {
     // TODO is there a default behavior like setting lo to `0` or something?
     // MemoryOverflow,
     NoAddress,
+}
+
+fn is_page_crossed(addr1: u16, addr2: u16) -> bool {
+    addr1 & 0xFF00 != addr2 & 0xFF00
 }
