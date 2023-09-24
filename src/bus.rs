@@ -47,7 +47,7 @@ const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF;
 pub(crate) struct NesBus {
     prg_rom: Vec<u8>,
     memory: [u8; 2048],
-    ppu: NesPpu,
+    pub ppu: NesPpu,
 }
 
 impl NesBus {

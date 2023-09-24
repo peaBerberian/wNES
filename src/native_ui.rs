@@ -44,6 +44,10 @@ pub(super) fn run(
     let mut texture = creator
         .create_texture_target(PixelFormatEnum::RGB24, 32, 32).unwrap();
 
+    texture.update(None, &cpu.bus.ppu.frame.data, 256 * 3).unwrap();
+    canvas.copy(&texture, None, None).unwrap();
+    canvas.present();
+
     let mut frame_buff = [0u8; 32 * 3 * 32];
     use rand::Rng;
     let mut rng = rand::thread_rng();
@@ -52,9 +56,9 @@ pub(super) fn run(
         read_user_input(cpu, &mut event_pump);
         cpu.write_u8_at(RNG_ADDR, rng.gen_range(1, 16));
         if update_frame_buffer(cpu, &mut frame_buff) {
-            texture.update(None, &frame_buff, 32 * 3).unwrap();
-            canvas.copy(&texture, None, None).unwrap();
-            canvas.present();
+            // texture.update(None, &frame_buff, 32 * 3).unwrap();
+            // canvas.copy(&texture, None, None).unwrap();
+            // canvas.present();
         }
         match cpu.next_op() {
             CpuComputationResult { brk: true, .. } => {

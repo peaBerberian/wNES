@@ -5,7 +5,7 @@ mod native_ui;
 mod rom;
 
 fn main() {
-    let rom = match std::fs::read("./ROM.nes") {
+    let rom = match std::fs::read("./pacman_eu.nes") {
         Ok(rom) => rom,
         Err(e) => {
             eprintln!("Failed to read ROM.nes file: {}", e);

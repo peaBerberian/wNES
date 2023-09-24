@@ -2,11 +2,12 @@
 ///
 /// Emulates the NES 6502-family microprocessor.
 mod debug;
-mod flags;
+mod status;
 mod op_code;
 
 use crate::bus::NesBus;
 use op_code::{AddressMode, Instruction, OpCode};
+use status::CpuStatusRegister;
 
 pub(crate) struct CpuComputationResult {
     pub(crate) brk: bool,
@@ -25,11 +26,6 @@ pub(super) struct NesCpu<'a> {
     /// Value in the `Y` register
     reg_y: u8,
 
-    /// flags register.
-    flags: flags::CpuFlags,
-
-    bus: &'a mut NesBus,
-
     /// The Nes' stack is descending (it grows downward in terms of memory address).
     ///
     /// `stack_pointer` is the offset relative to `STACK_LO` where the first
@@ -39,6 +35,12 @@ pub(super) struct NesCpu<'a> {
     /// Value of the Program Counter Register. Storing the address of the next
     /// instruction to read.
     program_counter: u16,
+
+    /// Status register.
+    status: CpuStatusRegister,
+
+    // TODO remove pub, only here for debugging for now
+    pub bus: &'a mut NesBus,
 }
 
 impl<'a> NesCpu<'a> {
@@ -47,7 +49,7 @@ impl<'a> NesCpu<'a> {
             reg_a: 0,
             reg_x: 0,
             reg_y: 0,
-            flags: flags::CpuFlags::new(),
+            status: CpuStatusRegister::new(),
             stack_pointer: 0xFD,
             program_counter: 0xC000,
             bus,
@@ -75,7 +77,7 @@ impl<'a> NesCpu<'a> {
                 self.reg_a,
                 self.reg_x,
                 self.reg_y,
-                self.flags.as_byte(false),
+                self.status.as_byte(false),
                 self.stack_pointer
             );
             println!(
@@ -432,20 +434,20 @@ impl<'a> NesCpu<'a> {
     }
 
     fn set_zero_and_negative_flags(&mut self, val: u8) {
-        self.flags.set_zero(val == 0);
-        self.flags.set_negative(val & 0b1000_0000 != 0);
+        self.status.set_zero(val == 0);
+        self.status.set_negative(val & 0b1000_0000 != 0);
     }
 
     // Instructions
 
     fn exec_adc(&mut self, val: u8) {
-        let res = u16::from(self.reg_a) + u16::from(val) + if self.flags.carry() { 1 } else { 0 };
-        self.flags.set_carry(res > 0b1111_1111);
+        let res = u16::from(self.reg_a) + u16::from(val) + if self.status.carry() { 1 } else { 0 };
+        self.status.set_carry(res > 0b1111_1111);
 
         let res = res as u8;
 
         // TODO this may be wrong I had no brain cells left for that one
-        self.flags
+        self.status
             .set_overflow((val ^ res) & (res ^ self.reg_a) & 0x80 != 0);
         self.set_zero_and_negative_flags(res);
         self.reg_a = res;
@@ -459,7 +461,7 @@ impl<'a> NesCpu<'a> {
     fn exec_asl_acc(&mut self) {
         let orig = self.reg_a;
         self.reg_a = orig << 1;
-        self.flags.set_carry(orig & 0b1000_0000 > 0);
+        self.status.set_carry(orig & 0b1000_0000 > 0);
         self.set_zero_and_negative_flags(self.reg_a);
     }
 
@@ -467,83 +469,83 @@ impl<'a> NesCpu<'a> {
         let val = self.read_u8_at(addr);
         let res = val << 1;
         self.write_u8_at(addr, res);
-        self.flags.set_carry(val & 0b1000_0000 > 0);
+        self.status.set_carry(val & 0b1000_0000 > 0);
         self.set_zero_and_negative_flags(res);
     }
 
     fn exec_bcc(&mut self, addr: u16) {
-        self.branch_if(!self.flags.carry(), addr);
+        self.branch_if(!self.status.carry(), addr);
     }
 
     fn exec_bcs(&mut self, addr: u16) {
-        self.branch_if(self.flags.carry(), addr);
+        self.branch_if(self.status.carry(), addr);
     }
 
     fn exec_beq(&mut self, addr: u16) {
-        self.branch_if(self.flags.zero(), addr);
+        self.branch_if(self.status.zero(), addr);
     }
 
     fn exec_bit(&mut self, val: u8) {
         let res = val & self.reg_a;
-        self.flags.set_zero(res == 0);
-        self.flags.set_overflow(val & 0b0100_0000 != 0);
-        self.flags.set_negative(val & 0b1000_0000 != 0);
+        self.status.set_zero(res == 0);
+        self.status.set_overflow(val & 0b0100_0000 != 0);
+        self.status.set_negative(val & 0b1000_0000 != 0);
     }
 
     fn exec_bmi(&mut self, addr: u16) {
-        self.branch_if(self.flags.negative(), addr);
+        self.branch_if(self.status.negative(), addr);
     }
 
     fn exec_bne(&mut self, addr: u16) {
-        self.branch_if(!self.flags.zero(), addr);
+        self.branch_if(!self.status.zero(), addr);
     }
 
     fn exec_bpl(&mut self, addr: u16) {
-        self.branch_if(!self.flags.negative(), addr);
+        self.branch_if(!self.status.negative(), addr);
     }
 
     fn exec_bvc(&mut self, addr: u16) {
-        self.branch_if(!self.flags.overflow(), addr);
+        self.branch_if(!self.status.overflow(), addr);
     }
 
     fn exec_bvs(&mut self, addr: u16) {
-        self.branch_if(self.flags.overflow(), addr);
+        self.branch_if(self.status.overflow(), addr);
     }
 
     fn exec_clc(&mut self) {
-        self.flags.set_carry(false);
+        self.status.set_carry(false);
     }
 
     fn exec_cld(&mut self) {
-        self.flags.set_decimal(false);
+        self.status.set_decimal(false);
     }
 
     fn exec_cli(&mut self) {
-        self.flags.set_interrupt_disable(false);
+        self.status.set_interrupt_disable(false);
     }
 
     fn exec_clv(&mut self) {
-        self.flags.set_overflow(false);
+        self.status.set_overflow(false);
     }
 
     fn exec_cmp(&mut self, val: u8) {
-        self.flags.set_carry(self.reg_a >= val);
-        self.flags.set_zero(self.reg_a == val);
-        self.flags
+        self.status.set_carry(self.reg_a >= val);
+        self.status.set_zero(self.reg_a == val);
+        self.status
             .set_negative((self.reg_a.wrapping_sub(val)) & 0b1000_0000 > 0);
     }
 
     fn exec_cpx(&mut self, val: u8) {
-        self.flags.set_carry(self.reg_x >= val);
-        self.flags.set_zero(self.reg_x == val);
-        self.flags
+        self.status.set_carry(self.reg_x >= val);
+        self.status.set_zero(self.reg_x == val);
+        self.status
             .set_negative((self.reg_x.wrapping_sub(val)) & 0b1000_0000 > 0);
     }
 
     fn exec_cpy(&mut self, val: u8) {
-        self.flags.set_carry(self.reg_y >= val);
-        self.flags.set_zero(self.reg_y == val);
-        self.flags
+        self.status.set_carry(self.reg_y >= val);
+        self.status.set_zero(self.reg_y == val);
+        self.status
             .set_negative((self.reg_y.wrapping_sub(val)) & 0b1000_0000 > 0);
     }
 
@@ -614,7 +616,7 @@ impl<'a> NesCpu<'a> {
     fn exec_lsr_acc(&mut self) {
         let orig = self.reg_a;
         self.reg_a = orig >> 1;
-        self.flags.set_carry(orig & 0b0000_0001 > 0);
+        self.status.set_carry(orig & 0b0000_0001 > 0);
         self.set_zero_and_negative_flags(self.reg_a);
     }
 
@@ -622,7 +624,7 @@ impl<'a> NesCpu<'a> {
         let val = self.read_u8_at(addr);
         let res = val >> 1;
         self.write_u8_at(addr, res);
-        self.flags.set_carry(val & 0b0000_0001 > 0);
+        self.status.set_carry(val & 0b0000_0001 > 0);
         self.set_zero_and_negative_flags(res);
     }
 
@@ -636,7 +638,7 @@ impl<'a> NesCpu<'a> {
     }
 
     fn exec_php(&mut self) {
-        self.push_stack_u8(self.flags.as_byte(true));
+        self.push_stack_u8(self.status.as_byte(true));
     }
 
     fn exec_pla(&mut self) {
@@ -647,54 +649,54 @@ impl<'a> NesCpu<'a> {
 
     fn exec_plp(&mut self) {
         let popped = self.pop_stack_u8();
-        self.flags.force(popped);
+        self.status.force(popped);
     }
 
     fn exec_rol_acc(&mut self) {
         let orig = self.reg_a;
         self.reg_a = orig << 1;
-        if self.flags.carry() {
+        if self.status.carry() {
             self.reg_a = self.reg_a.wrapping_add(1);
         }
-        self.flags.set_carry(orig & 0b1000_0000 > 0);
+        self.status.set_carry(orig & 0b1000_0000 > 0);
         self.set_zero_and_negative_flags(self.reg_a);
     }
 
     fn exec_rol_mem(&mut self, addr: u16) {
         let val = self.read_u8_at(addr);
         let mut new_val = val << 1;
-        if self.flags.carry() {
+        if self.status.carry() {
             new_val = new_val.wrapping_add(1);
         }
         self.write_u8_at(addr, new_val);
-        self.flags.set_carry(val & 0b1000_0000 > 0);
+        self.status.set_carry(val & 0b1000_0000 > 0);
         self.set_zero_and_negative_flags(new_val);
     }
 
     fn exec_ror_acc(&mut self) {
         let orig = self.reg_a;
         self.reg_a = orig >> 1;
-        if self.flags.carry() {
+        if self.status.carry() {
             self.reg_a |= 0b1000_0000
         }
-        self.flags.set_carry(orig & 0b0000_0001 > 0);
+        self.status.set_carry(orig & 0b0000_0001 > 0);
         self.set_zero_and_negative_flags(self.reg_a);
     }
 
     fn exec_ror_mem(&mut self, addr: u16) {
         let val = self.read_u8_at(addr);
         let mut new_val = val >> 1;
-        if self.flags.carry() {
+        if self.status.carry() {
             new_val |= 0b1000_0000
         }
         self.write_u8_at(addr, new_val);
-        self.flags.set_carry(val & 0b0000_0001 > 0);
+        self.status.set_carry(val & 0b0000_0001 > 0);
         self.set_zero_and_negative_flags(new_val);
     }
 
     fn exec_rti(&mut self) {
         let popped = self.pop_stack_u8();
-        self.flags.force(popped);
+        self.status.force(popped);
         let popped = self.pop_stack_u16();
         self.program_counter = popped;
     }
@@ -710,13 +712,13 @@ impl<'a> NesCpu<'a> {
         // That link and a LOT of thinking made me more or less understand what I was doing, at
         // some point:
         // http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
-        let res = u16::from(self.reg_a) + u16::from(!val) + if self.flags.carry() { 1 } else { 0 };
-        self.flags.set_carry(res > 0b1111_1111);
+        let res = u16::from(self.reg_a) + u16::from(!val) + if self.status.carry() { 1 } else { 0 };
+        self.status.set_carry(res > 0b1111_1111);
 
         let res = res as u8;
 
         // TODO this may be wrong I had no brain cells left for that one
-        self.flags
+        self.status
             .set_overflow(((val ^ 0xFF) ^ res) & (res ^ self.reg_a) & 0x80 != 0);
         self.set_zero_and_negative_flags(res);
 
@@ -724,15 +726,15 @@ impl<'a> NesCpu<'a> {
     }
 
     fn exec_sec(&mut self) {
-        self.flags.set_carry(true);
+        self.status.set_carry(true);
     }
 
     fn exec_sed(&mut self) {
-        self.flags.set_decimal(true);
+        self.status.set_decimal(true);
     }
 
     fn exec_sei(&mut self) {
-        self.flags.set_interrupt_disable(true);
+        self.status.set_interrupt_disable(true);
     }
 
     fn exec_sta(&mut self, addr: u16) {
@@ -780,9 +782,9 @@ impl<'a> NesCpu<'a> {
         let mut val = self.read_u8_at(addr);
         val = val.wrapping_sub(1);
         self.write_u8_at(addr, val);
-        self.flags.set_carry(self.reg_a >= val);
-        self.flags.set_zero(self.reg_a == val);
-        self.flags
+        self.status.set_carry(self.reg_a >= val);
+        self.status.set_zero(self.reg_a == val);
+        self.status
             .set_negative((self.reg_a.wrapping_sub(val)) & 0b1000_0000 > 0);
     }
 
@@ -813,18 +815,18 @@ impl<'a> NesCpu<'a> {
 
     fn on_nmi_interrupt(&mut self) {
         self.push_stack_u16(self.program_counter);
-        let flag = self.flags.as_byte(true);
+        let flag = self.status.as_byte(true);
         self.push_stack_u8(flag);
-        self.flags.set_interrupt_disable(true);
+        self.status.set_interrupt_disable(true);
         self.bus.tick(2);
         self.program_counter = self.read_u16_at(0xFFFA);
     }
 
     fn on_brk_interrupt(&mut self) {
         self.push_stack_u16(self.program_counter);
-        let flag = self.flags.as_byte(true);
+        let flag = self.status.as_byte(true);
         self.push_stack_u8(flag);
-        self.flags.set_interrupt_disable(true);
+        self.status.set_interrupt_disable(true);
         self.bus.tick(1);
         self.program_counter = self.read_u16_at(0xFFFE);
     }
