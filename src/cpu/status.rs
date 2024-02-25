@@ -17,7 +17,9 @@ pub(super) struct CpuStatusRegister {
 
 impl CpuStatusRegister {
     pub(super) fn new() -> Self {
-        Self { status: 0b0010_0100 }
+        Self {
+            status: 0b0010_0100,
+        }
     }
 
     pub(super) fn force(&mut self, byt: u8) {

@@ -31,7 +31,7 @@ pub(crate) enum TvSystem {
 impl Rom {
     pub(super) fn from_ines_file(rom: Vec<u8>) -> Result<Self, RomParsingError> {
         if &rom[0..4] != b"NES\x1A" {
-            return Err(RomParsingError::NoNESHeader)
+            return Err(RomParsingError::NoNESHeader);
         }
 
         // Size of PRG ROM in 16 KiB units
@@ -80,7 +80,6 @@ impl Rom {
         if has_vs_unisystem_bit {
             return Err(RomParsingError::VsUnisystemGame);
         }
-
 
         // Size of PRG RAM in 8 KiB units (Value 0 infers 8 KiB for compatibility; see PRG RAM circuit on nesdev.com)
         let mut len_prg_ram = rom[8] as usize * 8192;

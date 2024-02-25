@@ -2,8 +2,8 @@
 ///
 /// Emulates the NES 6502-family microprocessor.
 mod debug;
-mod status;
 mod op_code;
+mod status;
 
 use crate::bus::NesBus;
 use op_code::{AddressMode, Instruction, OpCode};
@@ -40,18 +40,20 @@ pub(super) struct NesCpu<'a> {
     status: CpuStatusRegister,
 
     // TODO remove pub, only here for debugging for now
-    pub bus: &'a mut NesBus,
+    pub bus: NesBus<'a>,
 }
 
 impl<'a> NesCpu<'a> {
-    pub(super) fn new(bus: &'a mut NesBus) -> Self {
+    pub(crate) fn new<'b>(mut bus: NesBus<'b>) -> NesCpu<'b> {
+        let program_counter = u16::from(bus.read(0xFFFC)) | u16::from(bus.read(0xFFFC + 1)) << 8;
+        // println!("PROGRAM COUNTER {program_counter}");
         NesCpu {
             reg_a: 0,
             reg_x: 0,
             reg_y: 0,
             status: CpuStatusRegister::new(),
             stack_pointer: 0xFD,
-            program_counter: 0xC000,
+            program_counter,
             bus,
         }
     }
@@ -65,13 +67,13 @@ impl<'a> NesCpu<'a> {
     }
 
     pub(super) fn next_op(&mut self) -> CpuComputationResult {
-        if self.bus.should_handle_nmi_interrupt() {
+        if self.bus.handle_nmi_interrupt() {
             self.on_nmi_interrupt();
         }
 
         if cfg!(feature = "debug_cpu") {
             use super::cpu::debug::*;
-            let format = format_instr(self.bus, self.program_counter, self.reg_x, self.reg_y);
+            let format = format_instr(&mut self.bus, self.program_counter, self.reg_x, self.reg_y);
             let reg_status = format!(
                 "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}",
                 self.reg_a,
@@ -277,6 +279,7 @@ impl<'a> NesCpu<'a> {
         };
 
         let cycles = parsed_op.nb_cycles();
+        // println!("TICK A");
         self.bus.tick(cycles);
         CpuComputationResult { brk: false }
     }
@@ -314,10 +317,7 @@ impl<'a> NesCpu<'a> {
         hi << 8 | lo
     }
 
-    fn compute_addr(
-        &mut self,
-        op_code: &OpCode
-    ) -> Option<u16> {
+    fn compute_addr(&mut self, op_code: &OpCode) -> Option<u16> {
         match op_code.mode() {
             AddressMode::Immediate => {
                 let pc = self.program_counter;
@@ -346,6 +346,7 @@ impl<'a> NesCpu<'a> {
                 self.program_counter += 2;
                 let addr = val.wrapping_add(self.reg_x as u16);
                 if op_code.page_crossing_cycle() && is_page_crossed(val, addr) {
+                    // println!("TICK B");
                     self.bus.tick(1);
                 }
                 Some(addr)
@@ -356,6 +357,7 @@ impl<'a> NesCpu<'a> {
                 self.program_counter += 2;
                 let addr = val.wrapping_add(self.reg_y as u16);
                 if op_code.page_crossing_cycle() && is_page_crossed(val, addr) {
+                    // println!("TICK C");
                     self.bus.tick(1);
                 }
                 Some(addr)
@@ -389,6 +391,7 @@ impl<'a> NesCpu<'a> {
                     | u16::from(self.read_u8_at(val.wrapping_add(1) as u16)) << 8;
                 let addr = base_addr.wrapping_add(self.reg_y as u16);
                 if op_code.page_crossing_cycle() && is_page_crossed(base_addr, addr) {
+                    // println!("TICK D");
                     self.bus.tick(1);
                 }
                 Some(addr)
@@ -425,10 +428,7 @@ impl<'a> NesCpu<'a> {
         }
     }
 
-    fn operand_value(
-        &mut self,
-        op_code: &OpCode
-    ) -> Option<u8> {
+    fn operand_value(&mut self, op_code: &OpCode) -> Option<u8> {
         let addr_ope = self.compute_addr(op_code)?;
         Some(self.read_u8_at(addr_ope))
     }
@@ -801,16 +801,14 @@ impl<'a> NesCpu<'a> {
 
     fn branch_if(&mut self, cond: bool, addr: u16) {
         if cond {
-            self.branch_to(addr);
-        }
-    }
-
-    fn branch_to(&mut self, addr: u16) {
-        self.bus.tick(1);
-        if is_page_crossed(self.program_counter.wrapping_add(1), addr) {
+            // println!("TICK BRANCH TAKEN");
             self.bus.tick(1);
+            if is_page_crossed(self.program_counter.wrapping_add(1), addr) {
+                // println!("TICK F");
+                self.bus.tick(1);
+            }
+            self.program_counter = addr;
         }
-        self.program_counter = addr;
     }
 
     fn on_nmi_interrupt(&mut self) {
@@ -818,6 +816,7 @@ impl<'a> NesCpu<'a> {
         let flag = self.status.as_byte(true);
         self.push_stack_u8(flag);
         self.status.set_interrupt_disable(true);
+        // println!("TICK G");
         self.bus.tick(2);
         self.program_counter = self.read_u16_at(0xFFFA);
     }
@@ -827,6 +826,7 @@ impl<'a> NesCpu<'a> {
         let flag = self.status.as_byte(true);
         self.push_stack_u8(flag);
         self.status.set_interrupt_disable(true);
+        // println!("TICK H");
         self.bus.tick(1);
         self.program_counter = self.read_u16_at(0xFFFE);
     }

@@ -21,7 +21,7 @@ pub(super) struct OpCode {
 impl OpCode {
     /// Produce a new `OpCode` from its byte as found in the program's ROM.
     pub(super) fn new(instr: u8) -> Self {
-        // TODO as an array/map insteady?
+        // TODO as an array/map instead?
         match instr {
             // ADC
             0x69 => OpCode::from_parsed_instr(Instruction::ADC, AddressMode::Immediate),

@@ -16,7 +16,7 @@
 /// |          (0: read backdrop from EXT pins; 1: output color on EXT pins)
 /// +--------- Generate an NMI at the start of the
 ///            vertical blanking interval (0: off; 1: on)
-pub(super) struct PpuCtrlRegister {
+pub(crate) struct PpuCtrlRegister {
     val: u8,
 }
 
@@ -42,19 +42,21 @@ impl PpuCtrlRegister {
         }
     }
 
-    pub(super) fn sprite_pattern_table_address(&self) -> u16 {
+    pub(crate) fn sprite_pattern_table_address(&self) -> u16 {
         if self.val & 0b0000_1000 > 0 {
-            0x0000
-        } else {
             0x1000
+        } else {
+            0x0000
         }
     }
 
-    pub(super) fn background_pattern_table_address(&self) -> u16 {
+    /// XXX TODO
+    /// Returns base address bank for the background
+    pub(crate) fn background_pattern_table_address(&self) -> u16 {
         if self.val & 0b0001_0000 > 0 {
-            0x0000
-        } else {
             0x1000
+        } else {
+            0x0000
         }
     }
 
@@ -273,7 +275,7 @@ impl PpuScrollRegister {
             PpuScrollRegisterAddressLatch::Horizontal => {
                 self.horizontal_offset = val;
                 self.address_latch = PpuScrollRegisterAddressLatch::Vertical;
-            },
+            }
             PpuScrollRegisterAddressLatch::Vertical => {
                 self.vertical_offset = val;
                 self.address_latch = PpuScrollRegisterAddressLatch::Horizontal;

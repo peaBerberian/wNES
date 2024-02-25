@@ -11,20 +11,20 @@ games!
 
 wNES goals are:
 
-  - to be able to run most NES games
+-   to be able to run most NES games
 
-  - to target both the Web - through WebAssembly - as well as running natively
+-   to target both the Web - through WebAssembly - as well as running natively
     on most popular operating systems.
 
     The native application may only have very rudimentary UI - the emulator's
     front-end is not the development area that attracts me the most and I'm
     not too familiar with Rust GUI development for now.
 
-  - to have some nice-to-have emulator features:
-      - save states
-      - execution pauses with visual peeking of hardware state (CPU registers,
+-   to have some nice-to-have emulator features:
+    -   save states
+    -   execution pauses with visual peeking of hardware state (CPU registers,
         memory, inputs...) and perhaps allowing its manipulation
-      - and maybe more (execution time travel?), depending on the complexity of
+    -   and maybe more (execution time travel?), depending on the complexity of
         it.
 
 On that matter, I started by following the following tutorial:
@@ -34,17 +34,19 @@ implementation of it (perhaps making emulator rookie mistakes along the way!).
 
 ## What's done for now
 
-  - [x] CPU (6502 variant) emulation: Finished for the instruction
-    implementing part.
+-   [x] CPU (6502 variant) emulation: Should be completely finished for the
+        "official" part.
 
-    I will see about cycle accuracy and all that later.
+    For unofficial/illegal/undocumented opcodes, not every one of them are
+    implemented for now, though I plan to.
 
-  - [ ] Cartridge handling
+-   [x] PPU (Picture Processing Unit) emulation: Is mostly implemented when
+        scrolling is not involved.
 
-  - [ ] PPU (Picture Processing Unit)
+-   [x] Controllers: Implemented, though corresponding keyboard keys are
+        hardcoded for now (`a` -> `A`, `b` -> `B`, `Return` -> `Enter`,
+        `Backspace` -> `Select` and directional keys for directions).
 
-  - [ ] Inputs (Controllers)
+-   [ ] APU (Audio Processing Unit)
 
-  - [ ] APU (Audio Processing Unit)
-
-  - [ ] Web port
+-   [ ] Web port

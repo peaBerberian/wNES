@@ -23,7 +23,7 @@ const NAME_TABLE_START: u16 = 0x2000;
 const NAME_TABLE_END: u16 = 0x2FFF;
 
 #[rustfmt::skip]
-pub static SYSTEM_PALLETE: [(u8,u8,u8); 64] = [
+pub(crate) static SYSTEM_PALLETE: [(u8,u8,u8); 64] = [
    (0x80, 0x80, 0x80), (0x00, 0x3D, 0xA6), (0x00, 0x12, 0xB0), (0x44, 0x00, 0x96), (0xA1, 0x00, 0x5E),
    (0xC7, 0x00, 0x28), (0xBA, 0x06, 0x00), (0x8C, 0x17, 0x00), (0x5C, 0x2F, 0x00), (0x10, 0x45, 0x00),
    (0x05, 0x4A, 0x00), (0x00, 0x47, 0x2E), (0x00, 0x41, 0x66), (0x00, 0x00, 0x00), (0x05, 0x05, 0x05),
@@ -40,82 +40,122 @@ pub static SYSTEM_PALLETE: [(u8,u8,u8); 64] = [
 ];
 
 pub(crate) struct Frame {
-   pub data: Vec<u8>,
+    /// Whole Data representing a frame of WIDTH*HEIGHT dimensions, left to right and top to bottom
+    /// where each pixel are represented through three u8 for respectively red green and blue
+    /// components.
+    pub data: Vec<u8>,
 }
 
 impl Frame {
-   const WIDTH: usize = 256;
-   const HIGHT: usize = 240;
+    const WIDTH: usize = 256;
+    const HEIGHT: usize = 240;
 
-   pub fn new() -> Self {
-       Frame {
-           data: vec![0; (Frame::WIDTH) * (Frame::HIGHT) * 3],
-       }
-   }
+    // Create a new void (entirely black) frame.
+    pub fn new() -> Self {
+        Frame {
+            data: vec![0; (Frame::WIDTH) * (Frame::HEIGHT) * 3],
+        }
+    }
 
-   pub fn set_pixel(&mut self, x: usize, y: usize, rgb: (u8, u8, u8)) {
-       let base = y * 3 * Frame::WIDTH + x * 3;
-       if base + 2 < self.data.len() {
-           self.data[base] = rgb.0;
-           self.data[base + 1] = rgb.1;
-           self.data[base + 2] = rgb.2;
-       }
-   }
+    /// Set a specific frame to a specific color.
+    pub fn set_pixel(&mut self, x: usize, y: usize, rgb: (u8, u8, u8)) {
+        let base = y * 3 * Frame::WIDTH + x * 3;
+        if base + 2 < self.data.len() {
+            self.data[base] = rgb.0;
+            self.data[base + 1] = rgb.1;
+            self.data[base + 2] = rgb.2;
+        }
+    }
 }
 
-fn show_tile(chr_rom: &Vec<u8>, bank: usize, tile_n: usize) ->Frame {
-   assert!(bank <= 1);
+fn show_tile(chr_rom: &Vec<u8>, bank: usize, tile_n: usize) -> Frame {
+    assert!(bank <= 1);
 
-   let mut frame = Frame::new();
-   let bank = (bank * 0x1000) as usize;
+    let mut frame = Frame::new();
+    let tile = &chr_rom[(bank + tile_n * 16)..=(bank + tile_n * 16 + 15)];
 
-   let tile = &chr_rom[(bank + tile_n * 16)..=(bank + tile_n * 16 + 15)];
+    for y in 0..=7 {
+        let mut upper = tile[y];
+        let mut lower = tile[y + 8];
 
-   for y in 0..=7 {
-       let mut upper = tile[y];
-       let mut lower = tile[y + 8];
+        for x in (0..=7).rev() {
+            let value = (1 & upper) << 1 | (1 & lower);
+            upper = upper >> 1;
+            lower = lower >> 1;
+            let rgb = match value {
+                0 => SYSTEM_PALLETE[0x01],
+                1 => SYSTEM_PALLETE[0x23],
+                2 => SYSTEM_PALLETE[0x27],
+                3 => SYSTEM_PALLETE[0x30],
+                _ => panic!("Impossible color value"),
+            };
+            frame.set_pixel(x, y, rgb)
+        }
+    }
 
-       for x in (0..=7).rev() {
-           let value = (1 & upper) << 1 | (1 & lower);
-           upper = upper >> 1;
-           lower = lower >> 1;
-           let rgb = match value {
-               0 => SYSTEM_PALLETE[0x01],
-               1 => SYSTEM_PALLETE[0x23],
-               2 => SYSTEM_PALLETE[0x27],
-               3 => SYSTEM_PALLETE[0x30],
-               _ => panic!("can't be"),
-           };
-           frame.set_pixel(x, y, rgb)
-       }
-   }
+    frame
+}
 
-   frame
+fn show_tile2(chr_rom: &Vec<u8>, bank: usize) -> Frame {
+    assert!(bank <= 1);
+
+    let mut frame = Frame::new();
+    let mut tile_base_x = 0;
+    let mut tile_base_y = 0;
+    for tile_n in 0..255 {
+        if tile_n != 0 && tile_n % 20 == 0 {
+            tile_base_x = 0;
+            tile_base_y += 10;
+        }
+        let tile = &chr_rom[(bank + tile_n * 16)..=(bank + tile_n * 16 + 15)];
+
+        for y in 0..=7 {
+            let mut upper = tile[y];
+            let mut lower = tile[y + 8];
+
+            for x in (0..=7).rev() {
+                let value = (1 & upper) << 1 | (1 & lower);
+                upper = upper >> 1;
+                lower = lower >> 1;
+                let rgb = match value {
+                    0 => SYSTEM_PALLETE[0x01],
+                    1 => SYSTEM_PALLETE[0x23],
+                    2 => SYSTEM_PALLETE[0x27],
+                    3 => SYSTEM_PALLETE[0x30],
+                    _ => panic!("Impossible value"),
+                };
+                frame.set_pixel(tile_base_x + x, tile_base_y + y, rgb)
+            }
+        }
+        tile_base_x += 10;
+    }
+
+    frame
 }
 
 pub(crate) struct NesPpu {
-    chr_rom: Vec<u8>,
+    pub(crate) chr_rom: Vec<u8>,
     mirroring: Mirroring,
     cycles: u32,
     curr_scanline: usize,
 
-    palette: [u8; 32],
+    pub(crate) palette: [u8; 32],
 
     // TODO
     prev_read_value: u8,
 
-    vram: [u8; 2048],
+    pub(crate) vram: [u8; 2048],
     /// OAM address port
     /// https://www.nesdev.org/wiki/PPU_registers#OAM_address_($2003)_%3E_write
-    oam_address: u8,
+    pub(crate) oam_address: u8,
 
     /// OAM data port
     /// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
-    oam_data: [u8; 256],
+    pub(crate) oam_data: [u8; 256],
 
     /// PPU control register
     /// https://www.nesdev.org/wiki/PPU_registers#Controller_($2000)_%3E_write
-    reg_ctrl: PpuCtrlRegister,
+    pub(crate) reg_ctrl: PpuCtrlRegister,
 
     /// PPU mask register
     /// https://www.nesdev.org/wiki/PPU_registers#Mask_($2001)_%3E_write
@@ -140,7 +180,7 @@ pub(crate) struct NesPpu {
 
 impl NesPpu {
     pub(crate) fn new(chr_rom: Vec<u8>, mirroring: Mirroring) -> Self {
-        let tile_frame = show_tile(&chr_rom, 1,12);
+        let tile_frame = show_tile2(&chr_rom, 0);
         Self {
             chr_rom,
             curr_scanline: 0,
@@ -156,7 +196,7 @@ impl NesPpu {
             reg_mask: PpuMaskRegister::new(),
             reg_scroll: PpuScrollRegister::new(),
             reg_status: PpuStatusRegister::new(),
-            unhandled_nmi_interrupt: true,
+            unhandled_nmi_interrupt: false,
             frame: tile_frame,
         }
     }
@@ -276,29 +316,31 @@ impl NesPpu {
     }
 
     pub(crate) fn tick(&mut self, cycles: u32) -> bool {
-       self.cycles += cycles;
-       if self.cycles >= 341 {
-           self.cycles = self.cycles - 341;
-           self.curr_scanline += 1;
+        self.cycles += cycles;
+        if self.cycles >= 341 {
+            self.cycles = self.cycles - 341;
+            self.curr_scanline += 1;
 
-           if self.curr_scanline == 241 {
-               if self.reg_ctrl.generate_vblank_nmi() {
-                   self.reg_status.set_in_vblank(true);
-                   self.unhandled_nmi_interrupt = true;
-               }
-           }
+            if self.curr_scanline == 241 {
+                self.reg_status.set_in_vblank(true);
+                self.reg_status.set_sprite_0_hit(false);
+                if self.reg_ctrl.generate_vblank_nmi() {
+                    self.unhandled_nmi_interrupt = true;
+                }
+            }
 
-           if self.curr_scanline >= 262 {
-               self.curr_scanline = 0;
-               self.unhandled_nmi_interrupt = false;
-               self.reg_status.set_in_vblank(false);
-               return true;
-           }
-       }
-       return false;
-   }
+            if self.curr_scanline >= 262 {
+                self.curr_scanline = 0;
+                self.unhandled_nmi_interrupt = false;
+                self.reg_status.set_in_vblank(false);
+                self.reg_status.set_sprite_0_hit(false);
+                return true;
+            }
+        }
+        return false;
+    }
 
-    pub(crate) fn should_handle_nmi_interrupt(&mut self) -> bool {
+    pub(crate) fn handle_nmi_interrupt(&mut self) -> bool {
         if self.unhandled_nmi_interrupt {
             self.unhandled_nmi_interrupt = false;
             true

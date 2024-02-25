@@ -1,3 +1,14 @@
+use crate::{controller::NesController, ppu::NesPpu, rom::Rom};
+
+const MEMORY_START_ADDR: u16 = 0;
+const MEMORY_END_ADDR: u16 = 0x1FFF;
+
+const PRG_ROM_START_ADDR: u16 = 0x8000;
+const PRG_ROM_END_ADDR: u16 = 0xFFFF;
+
+const PPU_REGISTERS_MIRRORS_START: u16 = 0x2008;
+const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF;
+
 /// # Bus emulation
 ///
 /// Emulates a "bus" concept, that a NES CPU emulation will use to read and write to specific
@@ -32,54 +43,68 @@
 /// |_ _ _ _ _ _ _ _| $0100 |               |
 /// | Zero Page     |       |               |
 /// |_______________| $0000 |_______________|
-
-use crate::{rom::Rom, ppu::NesPpu};
-
-const MEMORY_START_ADDR: u16 = 0;
-const MEMORY_END_ADDR: u16 = 0x1FFF;
-
-const PRG_ROM_START_ADDR: u16 = 0x8000;
-const PRG_ROM_END_ADDR: u16 = 0xFFFF;
-
-const PPU_REGISTERS_MIRRORS_START: u16 = 0x2008;
-const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF;
-
-pub(crate) struct NesBus {
+pub(crate) struct NesBus<'a> {
+    /// ROM data for the logic of the program
     prg_rom: Vec<u8>,
+    /// Representation of a NES "RAM". Only $0000 to $07FF included is useful because the rest is
+    /// mirrored, leading to a 2048 bytes array.
     memory: [u8; 2048],
+    /// NesBus owns our NES's Picture Processing Unit (a.k.a. `PPU`') abstraction to simplify its
+    /// implementation.
     pub ppu: NesPpu,
+
+    cycles: usize,
+
+    new_frame_callback: Box<dyn FnMut(&NesPpu, &mut NesController) + 'a>,
+
+    controller1: NesController,
 }
 
-impl NesBus {
-    pub(crate) fn new(
-        rom: &Rom
-    ) -> Self {
-        Self {
+impl<'a> NesBus<'a> {
+    /// Create a new NesBus, associated to a single parsed `Rom` struct.
+    pub fn new<'cb, F>(rom: &Rom, new_frame_callback: F) -> NesBus<'cb>
+    where
+        F: FnMut(&NesPpu, &mut NesController) + 'cb,
+    {
+        NesBus {
             prg_rom: rom.prg_rom().to_owned(),
             memory: [0; 2048],
             ppu: NesPpu::new(rom.chr_rom().to_owned(), rom.mirroring()),
+            cycles: 0,
+            new_frame_callback: Box::from(new_frame_callback),
+            controller1: NesController::new(),
         }
     }
 
+    /// Perform a read at a particular address and returns the corresponding read data.
+    ///
+    /// Note that because the NES memory maps most things, read data might not come from actual
+    /// RAM, and that the read data might perform side effects on hardware abstractions.
     pub(crate) fn read(&mut self, mut addr: u16) -> u8 {
         match addr {
-            MEMORY_START_ADDR ..= MEMORY_END_ADDR => {
+            MEMORY_START_ADDR..=MEMORY_END_ADDR => {
                 // Only the 11 least significant bits of the 16 bits address
                 // is actually read on NES hardware.
                 let actual_mem_addr = addr & 0b0000_0111_1111_1111;
                 self.memory[actual_mem_addr as usize]
-            },
+            }
 
             0x2002 => self.ppu.read_status(),
             0x2004 => self.ppu.read_oam_data(),
             0x2007 => self.ppu.read_data(),
+
+            0x4016 => self.controller1.read(),
+            0x4017 => {
+                // ignore controller 2 for now
+                0
+            }
 
             PPU_REGISTERS_MIRRORS_START..=PPU_REGISTERS_MIRRORS_END => {
                 let mirror_down_addr = addr & 0b00100000_00000111;
                 self.read(mirror_down_addr)
             }
 
-            PRG_ROM_START_ADDR ..= PRG_ROM_END_ADDR => {
+            PRG_ROM_START_ADDR..=PRG_ROM_END_ADDR => {
                 addr -= 0x8000;
                 if self.prg_rom.len() <= 0x4000 && addr >= 0x4000 {
                     // PRG ROM is either 16KiB or 32kiB. If 16kiB, mirror the
@@ -92,19 +117,20 @@ impl NesBus {
                 } else {
                     self.prg_rom[addr]
                 }
-            },
+            }
 
             // Not implemented yet
             _ => 0,
         }
     }
 
+    /// Perform a write at a particular address.
     pub(crate) fn write(&mut self, addr: u16, val: u8) {
         match addr {
-            MEMORY_START_ADDR ..= MEMORY_END_ADDR => {
+            MEMORY_START_ADDR..=MEMORY_END_ADDR => {
                 let actual_mem_addr = addr & 0b0000_0111_1111_1111;
                 self.memory[actual_mem_addr as usize] = val;
-            },
+            }
 
             0x2000 => self.ppu.write_ctrl(val),
             0x2001 => self.ppu.write_mask(val),
@@ -120,16 +146,27 @@ impl NesBus {
                     buff[i as usize] = self.read(start_buff + i);
                 }
                 self.ppu.write_oam_dma(buff);
-            },
-            _ => { },
+            }
+
+            0x4016 => {
+                self.controller1.write(val);
+            }
+
+            0x4017 => {
+                // ignore controller 2
+            }
+            _ => {}
         }
     }
 
     pub(crate) fn tick(&mut self, cycles: u8) {
-       self.ppu.tick(cycles as u32 * 3);
-   }
+        self.cycles += cycles as usize;
+        if self.ppu.tick(cycles as u32 * 3) {
+            (self.new_frame_callback)(&self.ppu, &mut self.controller1);
+        }
+    }
 
-    pub(crate) fn should_handle_nmi_interrupt(&mut self) -> bool {
-        self.ppu.should_handle_nmi_interrupt()
+    pub(crate) fn handle_nmi_interrupt(&mut self) -> bool {
+        self.ppu.handle_nmi_interrupt()
     }
 }
