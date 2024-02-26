@@ -5,8 +5,8 @@ mod native_ui;
 mod ppu;
 mod rom;
 
-use std::env;
 use ppu::{Frame, NesPpu};
+use std::env;
 
 fn main() {
     let mut args = env::args().skip(1);
@@ -16,8 +16,8 @@ fn main() {
     };
 
     if args.peekable().peek().is_some() {
-            eprintln!("Too many arguments. wNes just needs the ROM you want to check.");
-            return;
+        eprintln!("Too many arguments. wNes just needs the ROM you want to check.");
+        return;
     }
 
     let rom_file = match std::fs::read(rom_filename) {
@@ -40,7 +40,7 @@ fn main() {
         Err(e) => {
             eprintln!("Could not initialize UI: {:?}", e);
             return;
-        },
+        }
     };
 
     // let mut rng = rand::thread_rng();
@@ -51,8 +51,6 @@ fn main() {
     });
     let mut cpu = cpu::NesCpu::new(bus);
     loop {
-        match cpu.next_op() {
-            _ => {}
-        }
+        cpu.next_op();
     }
 }

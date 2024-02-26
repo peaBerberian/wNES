@@ -9,10 +9,6 @@ use crate::bus::NesBus;
 use op_code::{AddressMode, Instruction, OpCode};
 use status::CpuStatusRegister;
 
-pub(crate) struct CpuComputationResult {
-    pub(crate) brk: bool,
-}
-
 /// The lowest byte in Nes' memory dedicated to the stack.
 const STACK_LO: u16 = 0x0100;
 
@@ -66,7 +62,7 @@ impl<'a> NesCpu<'a> {
         self.bus.write(addr, val);
     }
 
-    pub(super) fn next_op(&mut self) -> CpuComputationResult {
+    pub(super) fn next_op(&mut self) {
         if self.bus.handle_nmi_interrupt() {
             self.on_nmi_interrupt();
         }
@@ -137,7 +133,7 @@ impl<'a> NesCpu<'a> {
             (Instruction::BRK, AddressMode::Implied) => {
                 self.on_brk_interrupt();
                 // TODO normally we should just continue execution from 0xFFFE
-                return CpuComputationResult { brk: true };
+                return;
             }
             (Instruction::BVC, AddressMode::Relative) => {
                 let addr = self.compute_addr(&parsed_op).unwrap();
@@ -281,7 +277,6 @@ impl<'a> NesCpu<'a> {
         let cycles = parsed_op.nb_cycles();
         // println!("TICK A");
         self.bus.tick(cycles);
-        CpuComputationResult { brk: false }
     }
 
     fn read_u16_at(&mut self, addr: u16) -> u16 {

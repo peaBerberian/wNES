@@ -21,7 +21,7 @@ pub(crate) struct NativeUi {
 impl NativeUi {
     pub(crate) fn try_new() -> Result<Self, NativeUiError> {
         // init sdl2
-        let sdl_context = sdl2::init().unwrap();
+        let sdl_context = sdl2::init()?;
         let window = sdl_context
             .video()?
             .window("wNES", (256.0 * 3.0) as u32, (240.0 * 3.0) as u32)
