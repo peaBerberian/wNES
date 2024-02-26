@@ -95,8 +95,8 @@ impl<'a> NesBus<'a> {
             0x2004 => self.ppu.read_oam_data(),
             0x2007 => self.ppu.read_data(),
 
-            0x4016 => self.controller1.read(),
-            0x4017 => self.controller2.read(),
+            0x4016 => self.controller1.read_next(),
+            0x4017 => self.controller2.read_next(),
 
             PPU_REGISTERS_MIRRORS_START..=PPU_REGISTERS_MIRRORS_END => {
                 let mirror_down_addr = addr & 0b00100000_00000111;
@@ -147,8 +147,11 @@ impl<'a> NesBus<'a> {
                 self.ppu.write_oam_dma(buff);
             }
 
-            0x4016 => self.controller1.write(val),
-            0x4017 => self.controller2.write(val),
+            0x4016 => {
+                self.controller1.write(val);
+                self.controller2.write(val);
+            }
+            0x4017 => {}
 
             _ => {}
         }
