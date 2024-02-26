@@ -1,6 +1,6 @@
 mod bus;
-mod cpu;
 mod controller;
+mod cpu;
 mod native_ui;
 mod ppu;
 mod rom;
@@ -12,7 +12,6 @@ use sdl2::pixels::PixelFormatEnum;
 // use sdl2::EventPump;
 
 // use cpu::{CpuComputationResult, NesCpu};
-use controller::NesController;
 use ppu::{Frame, NesPpu, SYSTEM_PALLETE};
 
 fn main() {
@@ -56,7 +55,7 @@ fn main() {
 
     let mut frame = Frame::new();
 
-    let bus = bus::NesBus::new(&parsed, move |ppu: &NesPpu, controller1: &mut NesController| {
+    let bus = bus::NesBus::new(&parsed, move |ppu: &NesPpu, (controller1, _)| {
         render(ppu, &mut frame);
         texture.update(None, &frame.data, 256 * 3).unwrap();
         canvas.copy(&texture, None, None).unwrap();

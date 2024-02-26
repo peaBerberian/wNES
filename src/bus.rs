@@ -55,16 +55,17 @@ pub(crate) struct NesBus<'a> {
 
     cycles: usize,
 
-    new_frame_callback: Box<dyn FnMut(&NesPpu, &mut NesController) + 'a>,
+    new_frame_callback: Box<dyn FnMut(&NesPpu, (&mut NesController, &mut NesController)) + 'a>,
 
     controller1: NesController,
+    controller2: NesController,
 }
 
 impl<'a> NesBus<'a> {
     /// Create a new NesBus, associated to a single parsed `Rom` struct.
     pub fn new<'cb, F>(rom: &Rom, new_frame_callback: F) -> NesBus<'cb>
     where
-        F: FnMut(&NesPpu, &mut NesController) + 'cb,
+        F: FnMut(&NesPpu, (&mut NesController, &mut NesController)) + 'cb,
     {
         NesBus {
             prg_rom: rom.prg_rom().to_owned(),
@@ -73,6 +74,7 @@ impl<'a> NesBus<'a> {
             cycles: 0,
             new_frame_callback: Box::from(new_frame_callback),
             controller1: NesController::new(),
+            controller2: NesController::new(),
         }
     }
 
@@ -94,10 +96,7 @@ impl<'a> NesBus<'a> {
             0x2007 => self.ppu.read_data(),
 
             0x4016 => self.controller1.read(),
-            0x4017 => {
-                // ignore controller 2 for now
-                0
-            }
+            0x4017 => self.controller2.read(),
 
             PPU_REGISTERS_MIRRORS_START..=PPU_REGISTERS_MIRRORS_END => {
                 let mirror_down_addr = addr & 0b00100000_00000111;
@@ -148,13 +147,9 @@ impl<'a> NesBus<'a> {
                 self.ppu.write_oam_dma(buff);
             }
 
-            0x4016 => {
-                self.controller1.write(val);
-            }
+            0x4016 => self.controller1.write(val),
+            0x4017 => self.controller2.write(val),
 
-            0x4017 => {
-                // ignore controller 2
-            }
             _ => {}
         }
     }
@@ -162,7 +157,7 @@ impl<'a> NesBus<'a> {
     pub(crate) fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
         if self.ppu.tick(cycles as u32 * 3) {
-            (self.new_frame_callback)(&self.ppu, &mut self.controller1);
+            (self.new_frame_callback)(&self.ppu, (&mut self.controller1, &mut self.controller2));
         }
     }
 
