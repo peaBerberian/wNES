@@ -15,7 +15,7 @@ pub(super) struct FormattedInstruction {
 
 /// From the instruction starting at the `offset` address when read on the given `bus`, produce
 /// textual representation of the instruction.
-/// @see FormattedInstruction
+/// @see `FormattedInstruction`
 pub(super) fn format_instr(
     bus: &mut super::NesBus,
     offset: u16,

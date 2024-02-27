@@ -6,6 +6,8 @@ use registers::{
     PpuAddrRegister, PpuCtrlRegister, PpuMaskRegister, PpuScrollRegister, PpuStatusRegister,
 };
 
+pub(crate) use registers::SpriteSize;
+
 /// $0000-$0FFF 	$1000 	Pattern table 0
 /// $1000-$1FFF 	$1000 	Pattern table 1
 /// $2000-$23FF 	$0400 	Nametable 0
@@ -135,7 +137,7 @@ fn show_tile2(chr_rom: &Vec<u8>, bank: usize) -> Frame {
 
 pub(crate) struct NesPpu {
     pub(crate) chr_rom: Vec<u8>,
-    mirroring: Mirroring,
+    pub(crate) mirroring: Mirroring,
     cycles: u32,
     curr_scanline: usize,
 
@@ -167,7 +169,7 @@ pub(crate) struct NesPpu {
 
     /// PPU scrolling position register
     /// https://www.nesdev.org/wiki/PPU_registers#Scroll_($2005)_%3E%3E_write_x2
-    reg_scroll: PpuScrollRegister,
+    pub(crate) reg_scroll: PpuScrollRegister,
 
     /// PPU address register
     /// https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
@@ -180,7 +182,6 @@ pub(crate) struct NesPpu {
 
 impl NesPpu {
     pub(crate) fn new(chr_rom: Vec<u8>, mirroring: Mirroring) -> Self {
-        let tile_frame = show_tile2(&chr_rom, 0);
         Self {
             chr_rom,
             curr_scanline: 0,
@@ -197,7 +198,7 @@ impl NesPpu {
             reg_scroll: PpuScrollRegister::new(),
             reg_status: PpuStatusRegister::new(),
             unhandled_nmi_interrupt: false,
-            frame: tile_frame,
+            frame: Frame::new(),
         }
     }
 
@@ -318,6 +319,18 @@ impl NesPpu {
     pub(crate) fn tick(&mut self, cycles: u32) -> bool {
         self.cycles += cycles;
         if self.cycles >= 341 {
+            let y = self.oam_data[0] as usize;
+            let x = self.oam_data[3] as u32;
+
+            // TODO remaining conditions?
+            // https://www.nesdev.org/wiki/PPU_OAM#Sprite_zero_hits
+            if y == self.curr_scanline
+                && x <= self.cycles
+                && self.reg_mask.show_bg()
+                && self.reg_mask.show_sprites()
+            {
+                self.reg_status.set_sprite_0_hit(true);
+            }
             self.cycles = self.cycles - 341;
             self.curr_scanline += 1;
 

@@ -1,4 +1,4 @@
-/// Implement PPU Control Register
+/// Implement PPU Control Registevertical_offset
 ///
 /// This struct is mainly dumb storage and doesn't have much logic own its own.
 ///
@@ -20,12 +20,18 @@ pub(crate) struct PpuCtrlRegister {
     val: u8,
 }
 
+pub(crate) enum SpriteSize {
+    Size8x8,
+    Size8x16,
+}
+
 impl PpuCtrlRegister {
     pub(super) fn new() -> Self {
         Self { val: 0 }
     }
 
-    pub(super) fn base_nametable_address(&self) -> u16 {
+    pub(crate) fn base_nametable_address(&self) -> u16 {
+        // TODO enum type?
         match self.val & 0b0000_0011 {
             0 => 0x2000,
             1 => 0x2400,
@@ -50,13 +56,19 @@ impl PpuCtrlRegister {
         }
     }
 
-    /// XXX TODO
-    /// Returns base address bank for the background
     pub(crate) fn background_pattern_table_address(&self) -> u16 {
         if self.val & 0b0001_0000 > 0 {
             0x1000
         } else {
             0x0000
+        }
+    }
+
+    pub(crate) fn sprite_size(&self) -> SpriteSize {
+        if self.val & 0b0010_0000 > 0 {
+            SpriteSize::Size8x16
+        } else {
+            SpriteSize::Size8x8
         }
     }
 
@@ -255,7 +267,7 @@ enum PpuScrollRegisterAddressLatch {
 /// Implement PPU Scroll Register
 ///
 /// This struct is mainly dumb storage and doesn't have much logic own its own.
-pub(super) struct PpuScrollRegister {
+pub(crate) struct PpuScrollRegister {
     horizontal_offset: u8,
     vertical_offset: u8,
     address_latch: PpuScrollRegisterAddressLatch,
@@ -285,6 +297,14 @@ impl PpuScrollRegister {
 
     pub(super) fn reset_address_latch(&mut self) {
         self.address_latch = PpuScrollRegisterAddressLatch::Horizontal;
+    }
+
+    pub(crate) fn horizontal_offset(&self) -> u8 {
+        self.horizontal_offset
+    }
+
+    pub(crate) fn vertical_offset(&self) -> u8 {
+        self.vertical_offset
     }
 }
 

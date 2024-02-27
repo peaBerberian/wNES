@@ -9,6 +9,9 @@ const PRG_ROM_END_ADDR: u16 = 0xFFFF;
 const PPU_REGISTERS_MIRRORS_START: u16 = 0x2008;
 const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF;
 
+const SRAM_START_ADDR: u16 = 0x6000;
+const SRAM_END_ADDR: u16 = 0x7FFF;
+
 /// # Bus emulation
 ///
 /// Emulates a "bus" concept, that a NES CPU emulation will use to read and write to specific
@@ -57,6 +60,8 @@ pub(crate) struct NesBus<'a> {
 
     new_frame_callback: Box<dyn FnMut(&NesPpu, (&mut NesController, &mut NesController)) + 'a>,
 
+    sram: [u8; 8191],
+
     controller1: NesController,
     controller2: NesController,
 }
@@ -70,6 +75,7 @@ impl<'a> NesBus<'a> {
         NesBus {
             prg_rom: rom.prg_rom().to_owned(),
             memory: [0; 2048],
+            sram: [0; 8191],
             ppu: NesPpu::new(rom.chr_rom().to_owned(), rom.mirroring()),
             cycles: 0,
             new_frame_callback: Box::from(new_frame_callback),
@@ -90,6 +96,8 @@ impl<'a> NesBus<'a> {
                 let actual_mem_addr = addr & 0b0000_0111_1111_1111;
                 self.memory[actual_mem_addr as usize]
             }
+
+            SRAM_START_ADDR..=SRAM_END_ADDR => self.sram[(addr - SRAM_START_ADDR) as usize],
 
             0x2002 => self.ppu.read_status(),
             0x2004 => self.ppu.read_oam_data(),
@@ -126,16 +134,13 @@ impl<'a> NesBus<'a> {
     /// Perform a write at a particular address.
     pub(crate) fn write(&mut self, addr: u16, val: u8) {
         match addr {
-            MEMORY_START_ADDR..=MEMORY_END_ADDR => {
-                let actual_mem_addr = addr & 0b0000_0111_1111_1111;
-                self.memory[actual_mem_addr as usize] = val;
-            }
-
             0x2000 => self.ppu.write_ctrl(val),
             0x2001 => self.ppu.write_mask(val),
             0x2003 => self.ppu.write_oam_address(val),
             0x2004 => self.ppu.write_oam_data(val),
-            0x2005 => self.ppu.write_scroll(val),
+            0x2005 => {
+                self.ppu.write_scroll(val);
+            }
             0x2006 => self.ppu.write_addr(val),
             0x2007 => self.ppu.write_data(val),
             0x4014 => {
@@ -152,6 +157,14 @@ impl<'a> NesBus<'a> {
                 self.controller2.write(val);
             }
             0x4017 => {}
+            MEMORY_START_ADDR..=MEMORY_END_ADDR => {
+                let actual_mem_addr = addr & 0b0000_0111_1111_1111;
+                self.memory[actual_mem_addr as usize] = val;
+            }
+
+            SRAM_START_ADDR..=SRAM_END_ADDR => {
+                self.sram[(addr - SRAM_START_ADDR) as usize] = val;
+            }
 
             _ => {}
         }

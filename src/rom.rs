@@ -39,6 +39,7 @@ impl Rom {
 
         // Size of CHR ROM in 8 KiB units (Value 0 means the board uses CHR RAM)
         let len_chr_rom = rom[5] as usize * 8192 /* 8 kiB */;
+        println!("{len_chr_rom}");
 
         let f6 = rom[6];
         let lower_mapper = f6 >> 4;
