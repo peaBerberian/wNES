@@ -1,4 +1,8 @@
-use crate::{controller::NesController, ppu::NesPpu, rom::Rom};
+use crate::{
+    controller::NesController,
+    ppu::{Frame, NesPpu},
+    rom::Rom,
+};
 
 const MEMORY_START_ADDR: u16 = 0;
 const MEMORY_END_ADDR: u16 = 0x1FFF;
@@ -58,7 +62,7 @@ pub(crate) struct NesBus<'a> {
 
     cycles: usize,
 
-    new_frame_callback: Box<dyn FnMut(&NesPpu, (&mut NesController, &mut NesController)) + 'a>,
+    new_frame_callback: Box<dyn FnMut(Frame, (&mut NesController, &mut NesController)) + 'a>,
 
     sram: [u8; 8191],
 
@@ -70,7 +74,7 @@ impl<'a> NesBus<'a> {
     /// Create a new NesBus, associated to a single parsed `Rom` struct.
     pub fn new<'cb, F>(rom: &Rom, new_frame_callback: F) -> NesBus<'cb>
     where
-        F: FnMut(&NesPpu, (&mut NesController, &mut NesController)) + 'cb,
+        F: FnMut(Frame, (&mut NesController, &mut NesController)) + 'cb,
     {
         NesBus {
             prg_rom: rom.prg_rom().to_owned(),
@@ -172,8 +176,8 @@ impl<'a> NesBus<'a> {
 
     pub(crate) fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
-        if self.ppu.tick(cycles as u32 * 3) {
-            (self.new_frame_callback)(&self.ppu, (&mut self.controller1, &mut self.controller2));
+        if let Some(frame) = self.ppu.tick(cycles as u32 * 3) {
+            (self.new_frame_callback)(frame, (&mut self.controller1, &mut self.controller2));
         }
     }
 

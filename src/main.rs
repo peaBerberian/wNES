@@ -5,7 +5,7 @@ mod native_ui;
 mod ppu;
 mod rom;
 
-use ppu::{Frame, NesPpu};
+use ppu::Frame;
 use std::env;
 
 fn main() {
@@ -27,6 +27,10 @@ fn main() {
             return;
         }
     };
+    run(rom_file);
+}
+
+fn run(rom_file: Vec<u8>) {
     let parsed = match rom::Rom::from_ines_file(rom_file) {
         Err(e) => {
             eprintln!("Could not read loaded ROM: {:?}", e);
@@ -35,6 +39,7 @@ fn main() {
         Ok(parsed) => parsed,
     };
 
+    use native_ui::WNesUi;
     let mut ui = match native_ui::NativeUi::try_new() {
         Ok(ui) => ui,
         Err(e) => {
@@ -45,9 +50,8 @@ fn main() {
 
     // let mut rng = rand::thread_rng();
 
-    let mut frame = Frame::new();
-    let bus = bus::NesBus::new(&parsed, move |ppu: &NesPpu, ctrls| {
-        ui.render_frame(&mut frame, ppu, ctrls);
+    let bus = bus::NesBus::new(&parsed, move |frame: Frame, ctrls| {
+        ui.render_frame(frame, ctrls);
     });
     let mut cpu = cpu::NesCpu::new(bus);
     loop {

@@ -70,71 +70,6 @@ impl Frame {
     }
 }
 
-fn show_tile(chr_rom: &Vec<u8>, bank: usize, tile_n: usize) -> Frame {
-    assert!(bank <= 1);
-
-    let mut frame = Frame::new();
-    let tile = &chr_rom[(bank + tile_n * 16)..=(bank + tile_n * 16 + 15)];
-
-    for y in 0..=7 {
-        let mut upper = tile[y];
-        let mut lower = tile[y + 8];
-
-        for x in (0..=7).rev() {
-            let value = (1 & upper) << 1 | (1 & lower);
-            upper = upper >> 1;
-            lower = lower >> 1;
-            let rgb = match value {
-                0 => SYSTEM_PALLETE[0x01],
-                1 => SYSTEM_PALLETE[0x23],
-                2 => SYSTEM_PALLETE[0x27],
-                3 => SYSTEM_PALLETE[0x30],
-                _ => panic!("Impossible color value"),
-            };
-            frame.set_pixel(x, y, rgb)
-        }
-    }
-
-    frame
-}
-
-fn show_tile2(chr_rom: &Vec<u8>, bank: usize) -> Frame {
-    assert!(bank <= 1);
-
-    let mut frame = Frame::new();
-    let mut tile_base_x = 0;
-    let mut tile_base_y = 0;
-    for tile_n in 0..255 {
-        if tile_n != 0 && tile_n % 20 == 0 {
-            tile_base_x = 0;
-            tile_base_y += 10;
-        }
-        let tile = &chr_rom[(bank + tile_n * 16)..=(bank + tile_n * 16 + 15)];
-
-        for y in 0..=7 {
-            let mut upper = tile[y];
-            let mut lower = tile[y + 8];
-
-            for x in (0..=7).rev() {
-                let value = (1 & upper) << 1 | (1 & lower);
-                upper = upper >> 1;
-                lower = lower >> 1;
-                let rgb = match value {
-                    0 => SYSTEM_PALLETE[0x01],
-                    1 => SYSTEM_PALLETE[0x23],
-                    2 => SYSTEM_PALLETE[0x27],
-                    3 => SYSTEM_PALLETE[0x30],
-                    _ => panic!("Impossible value"),
-                };
-                frame.set_pixel(tile_base_x + x, tile_base_y + y, rgb)
-            }
-        }
-        tile_base_x += 10;
-    }
-
-    frame
-}
-
 pub(crate) struct NesPpu {
     pub(crate) chr_rom: Vec<u8>,
     pub(crate) mirroring: Mirroring,
@@ -176,8 +111,6 @@ pub(crate) struct NesPpu {
     reg_addr: PpuAddrRegister,
 
     unhandled_nmi_interrupt: bool,
-
-    pub(crate) frame: Frame,
 }
 
 impl NesPpu {
@@ -198,7 +131,6 @@ impl NesPpu {
             reg_scroll: PpuScrollRegister::new(),
             reg_status: PpuStatusRegister::new(),
             unhandled_nmi_interrupt: false,
-            frame: Frame::new(),
         }
     }
 
@@ -316,7 +248,7 @@ impl NesPpu {
         }
     }
 
-    pub(crate) fn tick(&mut self, cycles: u32) -> bool {
+    pub(crate) fn tick(&mut self, cycles: u32) -> Option<Frame> {
         self.cycles += cycles;
         if self.cycles >= 341 {
             let y = self.oam_data[0] as usize;
@@ -347,10 +279,10 @@ impl NesPpu {
                 self.unhandled_nmi_interrupt = false;
                 self.reg_status.set_in_vblank(false);
                 self.reg_status.set_sprite_0_hit(false);
-                return true;
+                return Some(self.get_frame());
             }
         }
-        return false;
+        None
     }
 
     pub(crate) fn handle_nmi_interrupt(&mut self) -> bool {
@@ -361,4 +293,272 @@ impl NesPpu {
             false
         }
     }
+
+    fn get_frame(&mut self) -> Frame {
+        let mut frame = Frame::new();
+        self.render_background_on_frame(&mut frame);
+        for i in (0..self.oam_data.len()).step_by(4).rev() {
+            let tile_idx = self.oam_data[i + 1] as u16;
+            let tile_x = self.oam_data[i + 3] as usize;
+            let tile_y = self.oam_data[i] as usize;
+
+            let flip_vertical = if self.oam_data[i + 2] >> 7 & 1 == 1 {
+                true
+            } else {
+                false
+            };
+            let flip_horizontal = if self.oam_data[i + 2] >> 6 & 1 == 1 {
+                true
+            } else {
+                false
+            };
+            let pallette_idx = self.oam_data[i + 2] & 0b11;
+
+            // TODO
+            let _is_behind_background = self.oam_data[i + 2] & 0b0010_0000 > 0;
+            let sprite_palette = sprite_palette(self, pallette_idx);
+            let sprite_size = self.reg_ctrl.sprite_size();
+
+            let tile = match sprite_size {
+                SpriteSize::Size8x16 => {
+                    let base = if tile_idx % 2 == 0 { 0 } else { 0x1000 };
+                    let start_byte = base + ((tile_idx / 2) * 0x0020) as usize;
+                    // TODO this has never been tested, to check
+                    &self.chr_rom[start_byte..=start_byte + 31]
+                }
+
+                SpriteSize::Size8x8 => {
+                    let bank: u16 = self.reg_ctrl.sprite_pattern_table_address();
+                    let start_byte = (bank + tile_idx * 16) as usize;
+                    &self.chr_rom[start_byte..=start_byte + 15]
+                }
+            };
+
+            // TODO unsure of how to progress for 8x16 sprites
+            for y in 0..=7 {
+                let mut upper = tile[y];
+                let mut lower = tile[y + 8];
+                'x_loop: for x in (0..=7).rev() {
+                    let value = (1 & lower) << 1 | (1 & upper);
+                    upper = upper >> 1;
+                    lower = lower >> 1;
+                    let rgb = match value {
+                        0 => continue 'x_loop, // skip coloring the pixel
+                        1 => SYSTEM_PALLETE[sprite_palette[1] as usize],
+                        2 => SYSTEM_PALLETE[sprite_palette[2] as usize],
+                        3 => SYSTEM_PALLETE[sprite_palette[3] as usize],
+                        _ => panic!("can't be"),
+                    };
+                    match (flip_horizontal, flip_vertical) {
+                        (false, false) => frame.set_pixel(tile_x + x, tile_y + y, rgb),
+                        (true, false) => frame.set_pixel(tile_x + 7 - x, tile_y + y, rgb),
+                        (false, true) => frame.set_pixel(tile_x + x, tile_y + 7 - y, rgb),
+                        (true, true) => frame.set_pixel(tile_x + 7 - x, tile_y + 7 - y, rgb),
+                    }
+                }
+            }
+        }
+        frame
+    }
+
+    fn render_background_on_frame(&mut self, frame: &mut Frame) {
+        let bank = self.reg_ctrl.background_pattern_table_address();
+
+        let scroll_x = (self.reg_scroll.horizontal_offset()) as usize;
+        let scroll_y = (self.reg_scroll.vertical_offset()) as usize;
+
+        if scroll_x > 0 || scroll_y > 0 {
+            println!("scroll: {scroll_x}, {scroll_y}");
+        }
+
+        // TODO handle vertical scrolling and/or mirroring
+        let (main_nametable, second_nametable) =
+            match (&self.mirroring, self.reg_ctrl.base_nametable_address()) {
+                (Mirroring::Vertical, 0x2000) | (Mirroring::Vertical, 0x2800) => {
+                    (&self.vram[0..0x400], &self.vram[0x400..0x800])
+                }
+                (Mirroring::Vertical, 0x2400) | (Mirroring::Vertical, 0x2C00) => {
+                    (&self.vram[0x400..0x800], &self.vram[0..0x400])
+                }
+                (_, _) => {
+                    panic!("Not supported mirroring type {:?}", self.mirroring);
+                }
+            };
+
+        let name_table_configs = [
+            (
+                main_nametable,
+                scroll_x,             // crop_start_x
+                scroll_y,             // crop_start_y
+                256,                  // crop_end_x,
+                240,                  // crop_end_y
+                -(scroll_x as isize), // pixel_offset_x
+                -(scroll_y as isize), // pixel_offset_y
+            ),
+            (
+                second_nametable,
+                0,                       // crop_start_x
+                0,                       // crop_start_y
+                scroll_x,                // crop_end_x,
+                240,                     // crop_end_y
+                256 - scroll_x as isize, // pixel_offset_x
+                0,                       // pixel_offset_y
+            ),
+        ];
+
+        name_table_configs.into_iter().for_each(
+            |(
+                name_table,
+                crop_start_x,
+                crop_start_y,
+                crop_end_x,
+                crop_end_y,
+                pixel_offset_x,
+                pixel_offset_y,
+            )| {
+                for i in 0..0x3c0 {
+                    let tile_column = i % 32;
+                    let tile_row = i / 32;
+                    let attribute_table = &name_table[0x3c0..0x400];
+                    let bg_pal = background_palette(self, attribute_table, tile_column, tile_row);
+
+                    let tile = self.vram[i] as u16;
+                    let tile = &self.chr_rom
+                        [(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
+                    for y in 0..=7 {
+                        let mut upper = tile[y];
+                        let mut lower = tile[y + 8];
+
+                        for x in (0..=7).rev() {
+                            let value = (1 & lower) << 1 | (1 & upper);
+                            upper = upper >> 1;
+                            lower = lower >> 1;
+                            let rgb = match value {
+                                0 => SYSTEM_PALLETE[self.palette[0] as usize],
+                                1 => SYSTEM_PALLETE[bg_pal[1] as usize],
+                                2 => SYSTEM_PALLETE[bg_pal[2] as usize],
+                                3 => SYSTEM_PALLETE[bg_pal[3] as usize],
+                                _ => panic!("can't be"),
+                            };
+                            let pixel_x = tile_column * 8 + x;
+                            let pixel_y = tile_row * 8 + y;
+
+                            if pixel_x >= crop_start_x
+                                && pixel_x < crop_end_x
+                                && pixel_y >= crop_start_y
+                                && y < crop_end_y
+                            {
+                                frame.set_pixel(
+                                    (pixel_x as isize + pixel_offset_x) as usize,
+                                    (pixel_y as isize + pixel_offset_y) as usize,
+                                    rgb,
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+        );
+    }
 }
+
+fn sprite_palette(ppu: &NesPpu, pallete_idx: u8) -> [u8; 4] {
+    let start = 0x11 + (pallete_idx * 4) as usize;
+    [
+        0,
+        ppu.palette[start],
+        ppu.palette[start + 1],
+        ppu.palette[start + 2],
+    ]
+}
+
+fn background_palette(
+    ppu: &NesPpu,
+    attribute_table: &[u8],
+    tile_column: usize,
+    tile_row: usize,
+) -> [u8; 4] {
+    let attr_table_idx = tile_row / 4 * 8 + tile_column / 4;
+    let attr_byte = attribute_table[attr_table_idx]; // note: still using hardcoded first nametable
+
+    let pallet_idx = match (tile_column % 4 / 2, tile_row % 4 / 2) {
+        (0, 0) => attr_byte & 0b11,
+        (1, 0) => (attr_byte >> 2) & 0b11,
+        (0, 1) => (attr_byte >> 4) & 0b11,
+        (1, 1) => (attr_byte >> 6) & 0b11,
+        (_, _) => panic!("should not happen"),
+    };
+
+    let pallete_start: usize = 1 + (pallet_idx as usize) * 4;
+    [
+        ppu.palette[0],
+        ppu.palette[pallete_start],
+        ppu.palette[pallete_start + 1],
+        ppu.palette[pallete_start + 2],
+    ]
+}
+
+// fn show_tile(chr_rom: &Vec<u8>, bank: usize, tile_n: usize) -> Frame {
+//     assert!(bank <= 1);
+
+//     let mut frame = Frame::new();
+//     let tile = &chr_rom[(bank + tile_n * 16)..=(bank + tile_n * 16 + 15)];
+
+//     for y in 0..=7 {
+//         let mut upper = tile[y];
+//         let mut lower = tile[y + 8];
+
+//         for x in (0..=7).rev() {
+//             let value = (1 & upper) << 1 | (1 & lower);
+//             upper = upper >> 1;
+//             lower = lower >> 1;
+//             let rgb = match value {
+//                 0 => SYSTEM_PALLETE[0x01],
+//                 1 => SYSTEM_PALLETE[0x23],
+//                 2 => SYSTEM_PALLETE[0x27],
+//                 3 => SYSTEM_PALLETE[0x30],
+//                 _ => panic!("Impossible color value"),
+//             };
+//             frame.set_pixel(x, y, rgb)
+//         }
+//     }
+
+//     frame
+// }
+
+// fn show_tile2(chr_rom: &Vec<u8>, bank: usize) -> Frame {
+//     assert!(bank <= 1);
+
+//     let mut frame = Frame::new();
+//     let mut tile_base_x = 0;
+//     let mut tile_base_y = 0;
+//     for tile_n in 0..255 {
+//         if tile_n != 0 && tile_n % 20 == 0 {
+//             tile_base_x = 0;
+//             tile_base_y += 10;
+//         }
+//         let tile = &chr_rom[(bank + tile_n * 16)..=(bank + tile_n * 16 + 15)];
+
+//         for y in 0..=7 {
+//             let mut upper = tile[y];
+//             let mut lower = tile[y + 8];
+
+//             for x in (0..=7).rev() {
+//                 let value = (1 & upper) << 1 | (1 & lower);
+//                 upper = upper >> 1;
+//                 lower = lower >> 1;
+//                 let rgb = match value {
+//                     0 => SYSTEM_PALLETE[0x01],
+//                     1 => SYSTEM_PALLETE[0x23],
+//                     2 => SYSTEM_PALLETE[0x27],
+//                     3 => SYSTEM_PALLETE[0x30],
+//                     _ => panic!("Impossible value"),
+//                 };
+//                 frame.set_pixel(tile_base_x + x, tile_base_y + y, rgb)
+//             }
+//         }
+//         tile_base_x += 10;
+//     }
+
+//     frame
+// }
