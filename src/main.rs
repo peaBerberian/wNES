@@ -8,6 +8,7 @@ mod rom;
 use ppu::Frame;
 use std::env;
 
+use native_ui::WNesUi;
 fn main() {
     let mut args = env::args().skip(1);
     let Some(rom_filename) = args.next() else {
@@ -27,25 +28,23 @@ fn main() {
             return;
         }
     };
-    run(rom_file);
+
+    match native_ui::NativeUi::try_new() {
+        Ok(ui) => run(rom_file, ui),
+        Err(e) => {
+            eprintln!("Could not initialize UI: {:?}", e);
+            return;
+        }
+    };
 }
 
-fn run(rom_file: Vec<u8>) {
+fn run(rom_file: Vec<u8>, mut ui: impl WNesUi) {
     let parsed = match rom::Rom::from_ines_file(rom_file) {
         Err(e) => {
             eprintln!("Could not read loaded ROM: {:?}", e);
             return;
         }
         Ok(parsed) => parsed,
-    };
-
-    use native_ui::WNesUi;
-    let mut ui = match native_ui::NativeUi::try_new() {
-        Ok(ui) => ui,
-        Err(e) => {
-            eprintln!("Could not initialize UI: {:?}", e);
-            return;
-        }
     };
 
     // let mut rng = rand::thread_rng();

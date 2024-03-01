@@ -24,7 +24,6 @@ impl std::fmt::Display for NativeUiError {
 }
 
 pub(crate) trait WNesUi: Sized {
-    fn try_new() -> Result<Self, impl std::error::Error>;
     fn render_frame(
         &mut self,
         frame: Frame,
@@ -38,8 +37,8 @@ pub(crate) struct NativeUi {
     texture_creator: sdl2::render::TextureCreator<sdl2::video::WindowContext>,
 }
 
-impl WNesUi for NativeUi {
-    fn try_new() -> Result<Self, NativeUiError> {
+impl NativeUi {
+    pub(crate) fn try_new() -> Result<Self, NativeUiError> {
         // init sdl2
         let sdl_context = sdl2::init()?;
         let window = sdl_context
@@ -66,6 +65,9 @@ impl WNesUi for NativeUi {
         })
     }
 
+}
+
+impl WNesUi for NativeUi {
     fn render_frame(
         &mut self,
         frame: Frame,
