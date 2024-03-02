@@ -135,7 +135,12 @@ impl NesPpu {
     }
 
     pub(crate) fn write_ctrl(&mut self, value: u8) {
+        let before_vblank_nmi = self.reg_ctrl.generate_vblank_nmi();
         self.reg_ctrl.write(value);
+        if !before_vblank_nmi && self.reg_ctrl.generate_vblank_nmi() && self.reg_status.in_vblank() {
+            // TODO check why this breaks
+            // self.unhandled_nmi_interrupt = true;
+        }
     }
 
     pub(crate) fn write_mask(&mut self, value: u8) {
@@ -271,15 +276,13 @@ impl NesPpu {
                 self.reg_status.set_sprite_0_hit(false);
                 if self.reg_ctrl.generate_vblank_nmi() {
                     self.unhandled_nmi_interrupt = true;
+                    return Some(self.get_frame());
                 }
-            }
-
-            if self.curr_scanline >= 262 {
+            } else if self.curr_scanline >= 262 {
                 self.curr_scanline = 0;
                 self.unhandled_nmi_interrupt = false;
                 self.reg_status.set_in_vblank(false);
                 self.reg_status.set_sprite_0_hit(false);
-                return Some(self.get_frame());
             }
         }
         None
@@ -367,10 +370,6 @@ impl NesPpu {
         let scroll_x = (self.reg_scroll.horizontal_offset()) as usize;
         let scroll_y = (self.reg_scroll.vertical_offset()) as usize;
 
-        if scroll_x > 0 || scroll_y > 0 {
-            println!("scroll: {scroll_x}, {scroll_y}");
-        }
-
         // TODO handle vertical scrolling and/or mirroring
         let (main_nametable, second_nametable) =
             match (&self.mirroring, self.reg_ctrl.base_nametable_address()) {
@@ -380,10 +379,42 @@ impl NesPpu {
                 (Mirroring::Vertical, 0x2400) | (Mirroring::Vertical, 0x2C00) => {
                     (&self.vram[0x400..0x800], &self.vram[0..0x400])
                 }
-                (_, _) => {
-                    panic!("Not supported mirroring type {:?}", self.mirroring);
+                (Mirroring::Horizontal, 0x2000) | (Mirroring::Horizontal, 0x2400) => {
+                    (&self.vram[0..0x400], &self.vram[0x400..0x800])
                 }
+                (Mirroring::Horizontal, 0x2800) | (Mirroring::Horizontal, 0x2C00) => {
+                    (&self.vram[0x400..0x800], &self.vram[0..0x400])
+                }
+                (_, 0x2000) | (_, 0x2400) => {
+                    (&self.vram[0..0x400], &self.vram[0..0x400])
+                }
+                (_, 0x2800) | (_, 0x2C00) => {
+                    (&self.vram[0x400..0x800], &self.vram[0x400..0x800])
+                }
+                _ => panic!("Impossible"),
             };
+
+        let second_nametable_config = match &self.mirroring {
+            Mirroring::Vertical => (
+                second_nametable,
+                0,                       // crop_start_x
+                0,                       // crop_start_y
+                scroll_x,                // crop_end_x,
+                240,                     // crop_end_y
+                256 - scroll_x as isize, // pixel_offset_x
+                0,                       // pixel_offset_y
+            ),
+            Mirroring::Horizontal => (
+                second_nametable,
+                0,                       // crop_start_x
+                0,                       // crop_start_y
+                256,                     // crop_end_x,
+                scroll_y,                // crop_end_y
+                0,                       // pixel_offset_x
+                240 - scroll_y as isize, // pixel_offset_y
+            ),
+            _ => panic!("Not implemented mirroring yet: {:?}", &self.mirroring),
+        };
 
         let name_table_configs = [
             (
@@ -395,15 +426,7 @@ impl NesPpu {
                 -(scroll_x as isize), // pixel_offset_x
                 -(scroll_y as isize), // pixel_offset_y
             ),
-            (
-                second_nametable,
-                0,                       // crop_start_x
-                0,                       // crop_start_y
-                scroll_x,                // crop_end_x,
-                240,                     // crop_end_y
-                256 - scroll_x as isize, // pixel_offset_x
-                0,                       // pixel_offset_y
-            ),
+            second_nametable_config,
         ];
 
         name_table_configs.into_iter().for_each(

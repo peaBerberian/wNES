@@ -275,7 +275,7 @@ impl<'a> NesCpu<'a> {
         };
 
         let cycles = parsed_op.nb_cycles();
-        // println!("TICK A");
+        // println!("TICK INSTR {cycles}");
         self.bus.tick(cycles);
     }
 
@@ -341,7 +341,7 @@ impl<'a> NesCpu<'a> {
                 self.program_counter += 2;
                 let addr = val.wrapping_add(self.reg_x as u16);
                 if op_code.page_crossing_cycle() && is_page_crossed(val, addr) {
-                    // println!("TICK B");
+                    // println!("TICK PAGE CROSSING");
                     self.bus.tick(1);
                 }
                 Some(addr)
@@ -352,7 +352,7 @@ impl<'a> NesCpu<'a> {
                 self.program_counter += 2;
                 let addr = val.wrapping_add(self.reg_y as u16);
                 if op_code.page_crossing_cycle() && is_page_crossed(val, addr) {
-                    // println!("TICK C");
+                    // println!("TICK PAGE CROSSING");
                     self.bus.tick(1);
                 }
                 Some(addr)
@@ -386,7 +386,7 @@ impl<'a> NesCpu<'a> {
                     | u16::from(self.read_u8_at(val.wrapping_add(1) as u16)) << 8;
                 let addr = base_addr.wrapping_add(self.reg_y as u16);
                 if op_code.page_crossing_cycle() && is_page_crossed(base_addr, addr) {
-                    // println!("TICK D");
+                    // println!("TICK PAGE CROSSING");
                     self.bus.tick(1);
                 }
                 Some(addr)
@@ -798,8 +798,10 @@ impl<'a> NesCpu<'a> {
         if cond {
             // println!("TICK BRANCH TAKEN");
             self.bus.tick(1);
-            if is_page_crossed(self.program_counter.wrapping_add(1), addr) {
-                // println!("TICK F");
+            if is_page_crossed(self.program_counter, addr) {
+                // println!("TICK PAGE CROSSING");
+                // let program_counter = self.program_counter;
+                // println!("{program_counter} {addr}");
                 self.bus.tick(1);
             }
             self.program_counter = addr;
@@ -811,7 +813,7 @@ impl<'a> NesCpu<'a> {
         let flag = self.status.as_byte(true);
         self.push_stack_u8(flag);
         self.status.set_interrupt_disable(true);
-        // println!("TICK G");
+        // println!("TICK INTERRUPT 2");
         self.bus.tick(2);
         self.program_counter = self.read_u16_at(0xFFFA);
     }
@@ -821,7 +823,7 @@ impl<'a> NesCpu<'a> {
         let flag = self.status.as_byte(true);
         self.push_stack_u8(flag);
         self.status.set_interrupt_disable(true);
-        // println!("TICK H");
+        // println!("TICK INTERRUPT 1");
         self.bus.tick(1);
         self.program_counter = self.read_u16_at(0xFFFE);
     }

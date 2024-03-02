@@ -344,7 +344,7 @@ impl OpCode {
                     3
                 }
             }
-            Instruction::RTI | Instruction::RTS => 6,
+            Instruction::RTI | Instruction::RTS | Instruction::JSR => 6,
             Instruction::PHA | Instruction::PHP => 3,
             Instruction::PLA | Instruction::PLP => 4,
             Instruction::ASL
