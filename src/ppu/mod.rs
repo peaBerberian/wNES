@@ -445,7 +445,7 @@ impl NesPpu {
                     let attribute_table = &name_table[0x3c0..0x400];
                     let bg_pal = background_palette(self, attribute_table, tile_column, tile_row);
 
-                    let tile = self.vram[i] as u16;
+                    let tile = name_table[i] as u16;
                     let tile = &self.chr_rom
                         [(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
                     for y in 0..=7 {
