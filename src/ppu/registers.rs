@@ -1,3 +1,37 @@
+pub(super) struct NesPpuRegister {
+    /// PPU control register
+    /// https://www.nesdev.org/wiki/PPU_registers#Controller_($2000)_%3E_write
+    pub(super) ctrl: PpuCtrlRegister,
+
+    /// PPU mask register
+    /// https://www.nesdev.org/wiki/PPU_registers#Mask_($2001)_%3E_write
+    pub(super) mask: PpuMaskRegister,
+
+    /// PPU status register
+    /// https://www.nesdev.org/wiki/PPU_registers#Status_($2002)_%3C_read
+    pub(super) status: PpuStatusRegister,
+
+    /// PPU scrolling position register
+    /// https://www.nesdev.org/wiki/PPU_registers#Scroll_($2005)_%3E%3E_write_x2
+    pub(super) scroll: PpuScrollRegister,
+
+    /// PPU address register
+    /// https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
+    pub(super) addr: PpuAddrRegister,
+}
+
+impl NesPpuRegister {
+    pub(super) fn new() -> Self {
+        Self {
+            ctrl: PpuCtrlRegister::new(),
+            mask: PpuMaskRegister::new(),
+            status: PpuStatusRegister::new(),
+            scroll: PpuScrollRegister::new(),
+            addr: PpuAddrRegister::new(),
+        }
+    }
+}
+
 /// Implement PPU Control Registevertical_offset
 ///
 /// This struct is mainly dumb storage and doesn't have much logic own its own.

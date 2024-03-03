@@ -1,7 +1,5 @@
+use super::registers::{NesPpuRegister, SpriteSize};
 use crate::rom::Mirroring;
-use super::registers::{
-    PpuAddrRegister, PpuCtrlRegister, PpuMaskRegister, PpuScrollRegister, PpuStatusRegister, SpriteSize,
-};
 
 #[rustfmt::skip]
 pub(crate) static SYSTEM_PALLETE: [(u8,u8,u8); 64] = [
@@ -58,6 +56,8 @@ pub(super) struct FrameRenderer {
     /// OAM data port
     /// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
     pub(super) oam_data: [u8; 256],
+
+    last_pixel: usize,
 }
 
 impl FrameRenderer {
@@ -68,6 +68,7 @@ impl FrameRenderer {
             oam_data: [0; 64 * 4],
             palette: [0; 32],
             vram: [0; 2048],
+            last_pixel: 0,
         }
     }
 
@@ -78,15 +79,11 @@ impl FrameRenderer {
     pub(super) fn construct_frame(
         &mut self,
         chr_rom: &[u8],
-        reg_ctrl: &PpuCtrlRegister,
-        reg_mask: &PpuMaskRegister,
-        reg_status: &PpuStatusRegister,
-        reg_scroll: &PpuScrollRegister,
-        reg_addr: &PpuAddrRegister,
+        registers: &NesPpuRegister,
+        until: usize,
     ) {
-        self.render_background_on_frame(
-            chr_rom, reg_ctrl, reg_mask, reg_status, reg_scroll, reg_addr,
-        );
+        self.render_background_on_frame(chr_rom, registers, until);
+
         for i in (0..self.oam_data.len()).step_by(4).rev() {
             let tile_idx = self.oam_data[i + 1] as u16;
             let tile_x = self.oam_data[i + 3] as usize;
@@ -107,7 +104,7 @@ impl FrameRenderer {
             // TODO
             let _is_behind_background = self.oam_data[i + 2] & 0b0010_0000 > 0;
             let sprite_palette = sprite_palette(&self.palette, pallette_idx);
-            let sprite_size = reg_ctrl.sprite_size();
+            let sprite_size = registers.ctrl.sprite_size();
 
             let tile = match sprite_size {
                 SpriteSize::Size8x16 => {
@@ -118,7 +115,7 @@ impl FrameRenderer {
                 }
 
                 SpriteSize::Size8x8 => {
-                    let bank: u16 = reg_ctrl.sprite_pattern_table_address();
+                    let bank: u16 = registers.ctrl.sprite_pattern_table_address();
                     let start_byte = (bank + tile_idx * 16) as usize;
                     &chr_rom[start_byte..=start_byte + 15]
                 }
@@ -139,34 +136,40 @@ impl FrameRenderer {
                         3 => SYSTEM_PALLETE[sprite_palette[3] as usize],
                         _ => panic!("can't be"),
                     };
-                    match (flip_horizontal, flip_vertical) {
-                        (false, false) => self.frame.set_pixel(tile_x + x, tile_y + y, rgb),
-                        (true, false) => self.frame.set_pixel(tile_x + 7 - x, tile_y + y, rgb),
-                        (false, true) => self.frame.set_pixel(tile_x + x, tile_y + 7 - y, rgb),
-                        (true, true) => self.frame.set_pixel(tile_x + 7 - x, tile_y + 7 - y, rgb),
+                    let (x, y) = match (flip_horizontal, flip_vertical) {
+                        (false, false) => (tile_x + x, tile_y + y),
+                        (true, false) => (tile_x + 7 - x, tile_y + y),
+                        (false, true) => (tile_x + x, tile_y + 7 - y),
+                        (true, true) => (tile_x + 7 - x, tile_y + 7 - y),
+                    };
+                    let curr_pixel = y * 256 + x;
+                    if curr_pixel <= until && curr_pixel >= self.last_pixel {
+                        self.frame.set_pixel(x, y, rgb);
                     }
                 }
             }
+        }
+        if until < 61440 {
+            self.last_pixel = until + 1;
+        } else {
+            self.last_pixel = 0;
         }
     }
 
     fn render_background_on_frame(
         &mut self,
         chr_rom: &[u8],
-        reg_ctrl: &PpuCtrlRegister,
-        _reg_mask: &PpuMaskRegister,
-        _reg_status: &PpuStatusRegister,
-        reg_scroll: &PpuScrollRegister,
-        _reg_addr: &PpuAddrRegister,
+        registers: &NesPpuRegister,
+        until: usize,
     ) {
-        let bank = reg_ctrl.background_pattern_table_address();
+        let bank = registers.ctrl.background_pattern_table_address();
 
-        let scroll_x = (reg_scroll.horizontal_offset()) as usize;
-        let scroll_y = (reg_scroll.vertical_offset()) as usize;
+        let scroll_x = (registers.scroll.horizontal_offset()) as usize;
+        let scroll_y = (registers.scroll.vertical_offset()) as usize;
 
         // TODO handle vertical scrolling and/or mirroring
         let (main_nametable, second_nametable) =
-            match (&self.mirroring, reg_ctrl.base_nametable_address()) {
+            match (&self.mirroring, registers.ctrl.base_nametable_address()) {
                 (Mirroring::Vertical, 0x2000) | (Mirroring::Vertical, 0x2800) => {
                     (&self.vram[0..0x400], &self.vram[0x400..0x800])
                 }
@@ -262,11 +265,12 @@ impl FrameRenderer {
                                 && pixel_y >= crop_start_y
                                 && y < crop_end_y
                             {
-                                self.frame.set_pixel(
-                                    (pixel_x as isize + pixel_offset_x) as usize,
-                                    (pixel_y as isize + pixel_offset_y) as usize,
-                                    rgb,
-                                )
+                                let x = (pixel_x as isize + pixel_offset_x) as usize;
+                                let y = (pixel_y as isize + pixel_offset_y) as usize;
+                                let curr_pixel = y * 256 + x;
+                                if curr_pixel >= self.last_pixel && curr_pixel <= until {
+                                    self.frame.set_pixel(x, y, rgb);
+                                }
                             }
                         }
                     }

@@ -3,13 +3,10 @@ use crate::rom::Mirroring;
 mod frame;
 mod registers;
 
-use registers::{
-    PpuAddrRegister, PpuCtrlRegister, PpuMaskRegister, PpuScrollRegister, PpuStatusRegister,
-};
-
-use frame::FrameRenderer;
 pub(crate) use frame::Frame;
+use frame::FrameRenderer;
 
+use registers::NesPpuRegister;
 
 /// $0000-$0FFF 	$1000 	Pattern table 0
 /// $1000-$1FFF 	$1000 	Pattern table 1
@@ -28,39 +25,18 @@ const NAME_TABLE_START: u16 = 0x2000;
 const NAME_TABLE_END: u16 = 0x2FFF;
 
 pub(crate) struct NesPpu {
-    pub(crate) chr_rom: Vec<u8>,
-    pub(crate) mirroring: Mirroring,
+    chr_rom: Vec<u8>,
+    mirroring: Mirroring,
     cycles: u32,
     curr_scanline: usize,
-
+    registers: NesPpuRegister,
     prev_read_value: u8,
 
     /// OAM address port
     /// https://www.nesdev.org/wiki/PPU_registers#OAM_address_($2003)_%3E_write
-    pub(crate) oam_address: u8,
-
-    /// PPU control register
-    /// https://www.nesdev.org/wiki/PPU_registers#Controller_($2000)_%3E_write
-    pub(crate) reg_ctrl: PpuCtrlRegister,
-
-    /// PPU mask register
-    /// https://www.nesdev.org/wiki/PPU_registers#Mask_($2001)_%3E_write
-    reg_mask: PpuMaskRegister,
-
-    /// PPU status register
-    /// https://www.nesdev.org/wiki/PPU_registers#Status_($2002)_%3C_read
-    reg_status: PpuStatusRegister,
-
-    /// PPU scrolling position register
-    /// https://www.nesdev.org/wiki/PPU_registers#Scroll_($2005)_%3E%3E_write_x2
-    pub(crate) reg_scroll: PpuScrollRegister,
-
-    /// PPU address register
-    /// https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2
-    reg_addr: PpuAddrRegister,
+    oam_address: u8,
 
     unhandled_nmi_interrupt: bool,
-
     frame_renderer: FrameRenderer,
 }
 
@@ -73,20 +49,18 @@ impl NesPpu {
             mirroring,
             oam_address: 0,
             prev_read_value: 0,
-            reg_addr: PpuAddrRegister::new(),
-            reg_ctrl: PpuCtrlRegister::new(),
-            reg_mask: PpuMaskRegister::new(),
-            reg_scroll: PpuScrollRegister::new(),
-            reg_status: PpuStatusRegister::new(),
+            registers: NesPpuRegister::new(),
             unhandled_nmi_interrupt: false,
             frame_renderer: FrameRenderer::new(mirroring),
         }
     }
 
     pub(crate) fn write_ctrl(&mut self, value: u8) {
-        let before_vblank_nmi = self.reg_ctrl.generate_vblank_nmi();
-        self.reg_ctrl.write(value);
-        if !before_vblank_nmi && self.reg_ctrl.generate_vblank_nmi() && self.reg_status.in_vblank()
+        let before_vblank_nmi = self.registers.ctrl.generate_vblank_nmi();
+        self.registers.ctrl.write(value);
+        if !before_vblank_nmi
+            && self.registers.ctrl.generate_vblank_nmi()
+            && self.registers.status.in_vblank()
         {
             // TODO check why this breaks
             // self.unhandled_nmi_interrupt = true;
@@ -94,14 +68,14 @@ impl NesPpu {
     }
 
     pub(crate) fn write_mask(&mut self, value: u8) {
-        self.reg_mask.write(value);
+        self.registers.mask.write(value);
     }
 
     pub(crate) fn read_status(&mut self) -> u8 {
-        let val = self.reg_status.read();
-        self.reg_status.set_in_vblank(false);
-        self.reg_addr.reset_address_latch();
-        self.reg_scroll.reset_address_latch();
+        let val = self.registers.status.read();
+        self.registers.status.set_in_vblank(false);
+        self.registers.addr.reset_address_latch();
+        self.registers.scroll.reset_address_latch();
         val
     }
 
@@ -119,16 +93,16 @@ impl NesPpu {
     }
 
     pub(crate) fn write_scroll(&mut self, value: u8) {
-        self.reg_scroll.write(value);
+        self.registers.scroll.write(value);
     }
 
     pub(crate) fn write_addr(&mut self, value: u8) {
-        self.reg_addr.write(value);
+        self.registers.addr.write(value);
     }
 
     pub(crate) fn write_data(&mut self, value: u8) {
-        let vram_increment = self.reg_ctrl.vram_address_increment();
-        let addr = self.reg_addr.read_address(vram_increment);
+        let vram_increment = self.registers.ctrl.vram_address_increment();
+        let addr = self.registers.addr.read_address(vram_increment);
         match addr {
             NAME_TABLE_START..=NAME_TABLE_END => {
                 self.frame_renderer.vram[self.normalize_vram_address(addr) as usize] = value;
@@ -148,8 +122,8 @@ impl NesPpu {
     }
 
     pub(crate) fn read_data(&mut self) -> u8 {
-        let vram_increment = self.reg_ctrl.vram_address_increment();
-        let addr = self.reg_addr.read_address(vram_increment);
+        let vram_increment = self.registers.ctrl.vram_address_increment();
+        let addr = self.registers.addr.read_address(vram_increment);
         match addr {
             CHR_ROM_START..=CHR_ROM_END => {
                 let result = self.prev_read_value;
@@ -214,34 +188,33 @@ impl NesPpu {
             // https://www.nesdev.org/wiki/PPU_OAM#Sprite_zero_hits
             if y == self.curr_scanline
                 && x <= self.cycles
-                && self.reg_mask.show_bg()
-                && self.reg_mask.show_sprites()
+                && self.registers.mask.show_bg()
+                && self.registers.mask.show_sprites()
             {
-                self.reg_status.set_sprite_0_hit(true);
+                self.frame_renderer.construct_frame(
+                    &self.chr_rom,
+                    &self.registers,
+                    y * 256 + x as usize,
+                );
+                self.registers.status.set_sprite_0_hit(true);
             }
             self.cycles = self.cycles - 341;
             self.curr_scanline += 1;
 
             if self.curr_scanline == 241 {
-                self.reg_status.set_in_vblank(true);
-                self.reg_status.set_sprite_0_hit(false);
-                if self.reg_ctrl.generate_vblank_nmi() {
+                self.registers.status.set_in_vblank(true);
+                self.registers.status.set_sprite_0_hit(false);
+                if self.registers.ctrl.generate_vblank_nmi() {
                     self.unhandled_nmi_interrupt = true;
-                    self.frame_renderer.construct_frame(
-                        &self.chr_rom,
-                        &self.reg_ctrl,
-                        &self.reg_mask,
-                        &self.reg_status,
-                        &self.reg_scroll,
-                        &self.reg_addr,
-                    );
+                    self.frame_renderer
+                        .construct_frame(&self.chr_rom, &self.registers, 61440);
                     return Some(self.frame_renderer.frame());
                 }
             } else if self.curr_scanline >= 262 {
                 self.curr_scanline = 0;
                 self.unhandled_nmi_interrupt = false;
-                self.reg_status.set_in_vblank(false);
-                self.reg_status.set_sprite_0_hit(false);
+                self.registers.status.set_in_vblank(false);
+                self.registers.status.set_sprite_0_hit(false);
             }
         }
         None
