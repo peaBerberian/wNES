@@ -284,7 +284,7 @@ impl FrameRenderer {
         chr_rom: &[u8],
         registers: &NesPpuRegister,
         until: usize,
-    ) {
+        ) {
         for i in self.last_pixel..=until {
             self.render_background_pixel(chr_rom, registers, i % 256, i / 256);
         }
@@ -320,7 +320,7 @@ impl FrameRenderer {
                 (_, 0x2800) | (_, 0x2C00) => (&self.vram[0x400..0x800], &self.vram[0x400..0x800]),
                 _ => panic!("Impossible"),
             };
-
+        
         let mut is_second_nametable = false;
         let mut x_in_name_table = x + scroll_x;
         if x_in_name_table >= 256 {
@@ -331,8 +331,8 @@ impl FrameRenderer {
         }
 
         let mut y_in_name_table = y + scroll_y;
-        if y_in_name_table >= 256 {
-            y_in_name_table -= 256;
+        if y_in_name_table >= 240 {
+            y_in_name_table -= 240;
             if self.mirroring == Mirroring::Horizontal {
                 is_second_nametable = true;
             }
@@ -346,16 +346,22 @@ impl FrameRenderer {
             main_nametable
         };
         let attribute_table = &nametable[0x3c0..0x400];
-        let bg_pal = background_palette(&self.palette, attribute_table, tile_column, tile_row);
+        let bg_pal =
+            background_palette(&self.palette, attribute_table, tile_column, tile_row);
         let tile = nametable[nt_idx] as u16;
-        let tile = &chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
+        let tile =
+            &chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
         for y in 0..=7 {
             let mut upper = tile[y];
             let mut lower = tile[y + 8];
             for x in (0..=7).rev() {
                 let pixel_x = tile_column * 8 + x;
                 let pixel_y = tile_row * 8 + y;
-                let x = (pixel_x as isize) as usize;
+                let x = if is_second_nametable {
+                    pixel_x + (256 - scroll_x)
+                } else {
+                    pixel_x - scroll_x
+                };
                 let y = (pixel_y as isize) as usize;
                 let value = (1 & lower) << 1 | (1 & upper);
                 upper = upper >> 1;
