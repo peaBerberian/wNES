@@ -50,21 +50,21 @@ impl NesPpuRegister {
 /// |          (0: read backdrop from EXT pins; 1: output color on EXT pins)
 /// +--------- Generate an NMI at the start of the
 ///            vertical blanking interval (0: off; 1: on)
-pub(crate) struct PpuCtrlRegister {
+pub(super) struct PpuCtrlRegister {
     val: u8,
 }
 
-pub(crate) enum SpriteSize {
+pub(super) enum SpriteSize {
     Size8x8,
     Size8x16,
 }
 
 impl PpuCtrlRegister {
-    pub(super) fn new() -> Self {
+    fn new() -> Self {
         Self { val: 0 }
     }
 
-    pub(crate) fn base_nametable_address(&self) -> u16 {
+    pub(super) fn base_nametable_address(&self) -> u16 {
         // TODO enum type?
         match self.val & 0b0000_0011 {
             0 => 0x2000,
@@ -82,7 +82,7 @@ impl PpuCtrlRegister {
         }
     }
 
-    pub(crate) fn sprite_pattern_table_address(&self) -> u16 {
+    pub(super) fn sprite_pattern_table_address(&self) -> u16 {
         if self.val & 0b0000_1000 > 0 {
             0x1000
         } else {
@@ -90,7 +90,7 @@ impl PpuCtrlRegister {
         }
     }
 
-    pub(crate) fn background_pattern_table_address(&self) -> u16 {
+    pub(super) fn background_pattern_table_address(&self) -> u16 {
         if self.val & 0b0001_0000 > 0 {
             0x1000
         } else {
@@ -98,7 +98,7 @@ impl PpuCtrlRegister {
         }
     }
 
-    pub(crate) fn sprite_size(&self) -> SpriteSize {
+    pub(super) fn sprite_size(&self) -> SpriteSize {
         if self.val & 0b0010_0000 > 0 {
             SpriteSize::Size8x16
         } else {
@@ -136,7 +136,7 @@ pub(super) struct PpuMaskRegister {
 }
 
 impl PpuMaskRegister {
-    pub(super) fn new() -> Self {
+    fn new() -> Self {
         Self { val: 0 }
     }
 
@@ -245,7 +245,7 @@ pub(super) struct PpuStatusRegister {
 }
 
 impl PpuStatusRegister {
-    pub(super) fn new() -> Self {
+    fn new() -> Self {
         Self { val: 0 }
     }
 
@@ -301,14 +301,14 @@ enum PpuScrollRegisterAddressLatch {
 /// Implement PPU Scroll Register
 ///
 /// This struct is mainly dumb storage and doesn't have much logic own its own.
-pub(crate) struct PpuScrollRegister {
+pub(super) struct PpuScrollRegister {
     horizontal_offset: u8,
     vertical_offset: u8,
     address_latch: PpuScrollRegisterAddressLatch,
 }
 
 impl PpuScrollRegister {
-    pub(super) fn new() -> Self {
+    fn new() -> Self {
         Self {
             horizontal_offset: 0,
             vertical_offset: 0,
@@ -333,11 +333,11 @@ impl PpuScrollRegister {
         self.address_latch = PpuScrollRegisterAddressLatch::Horizontal;
     }
 
-    pub(crate) fn horizontal_offset(&self) -> u8 {
+    pub(super) fn horizontal_offset(&self) -> u8 {
         self.horizontal_offset
     }
 
-    pub(crate) fn vertical_offset(&self) -> u8 {
+    pub(super) fn vertical_offset(&self) -> u8 {
         self.vertical_offset
     }
 }
@@ -352,7 +352,7 @@ pub(super) struct PpuAddrRegister {
 }
 
 impl PpuAddrRegister {
-    pub(super) fn new() -> Self {
+    fn new() -> Self {
         Self {
             first: 0,
             second: 0,
