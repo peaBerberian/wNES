@@ -27,26 +27,33 @@ wNES goals are:
     -   and maybe more (execution time travel?), depending on the complexity of
         it.
 
-On that matter, I started by following the following tutorial:
-https://bugzmanov.github.io/nes_ebook
-Though I try to not inspire myself too much of it, to get my real own
-implementation of it (perhaps making emulator rookie mistakes along the way!).
-
 ## What's done for now
 
--   [x] CPU (6502 variant) emulation: Should be completely finished for the
-        "official" part.
+It can run games which do not involve mappers, which are modules allowing to
+implement capabilities not found inside a NES console but through supplementary
+hardware integrated inside game cartridges instead.
 
-    For unofficial/illegal/undocumented opcodes, not every one of them are
-    implemented for now, though I plan to.
+Yet, many early and/or simple games which do not rely on any mapper, such as
+pacman and the first Super Mario, are runnable.
 
--   [x] PPU (Picture Processing Unit) emulation: Is mostly implemented when
-        scrolling is not involved.
+However even for those supported games, there are many rough edges, especially:
 
--   [x] Controllers: Implemented, though corresponding keyboard keys are
-        hardcoded for now (`a` -> `A`, `b` -> `B`, `Return` -> `Enter`,
-        `Backspace` -> `Select` and directional keys for directions).
+-   timing between the PPU (the component handling the rendering) and the CPU is
+    not perfect.
 
--   [ ] APU (Audio Processing Unit)
+    For example Super Mario does a trick where it bases itself on some PPU
+    interrupt to keep the user's score on screen but to scroll the rest of the
+    background.
 
--   [ ] Web port
+    Here, this trick does happen but is short a few lines. I don't know why yet,
+    I guess one of my timing calculation is off.
+
+-   Audio is not implemented yet. It didn't sound to be a fun part as much to me
+    for now!
+
+-   Many PPU registers and tricks, such as those relied on to hide sprites or
+    background are not implemented yet.
+
+    To re-use the Super Mario example, mushrooms appear in front of a pushed box
+    as soon as Mario interacted with it, whereas in the original game they
+    appear to go out of the box and are thus behind it.
