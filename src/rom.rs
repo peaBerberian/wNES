@@ -15,7 +15,7 @@ pub(crate) struct Rom {
     mirroring: Mirroring,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Mirroring {
     FourScreen,
     Vertical,

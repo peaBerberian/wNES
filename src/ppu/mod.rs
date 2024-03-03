@@ -201,6 +201,12 @@ impl NesPpu {
             self.cycles = self.cycles - 341;
             self.curr_scanline += 1;
 
+            // self.frame_renderer.construct_frame(
+            //     &self.chr_rom,
+            //     &self.registers,
+            //     usize::min(self.curr_scanline * 256, 240) + usize::min(self.cycles as usize, 255),
+            // );
+
             if self.curr_scanline == 241 {
                 self.registers.status.set_in_vblank(true);
                 self.registers.status.set_sprite_0_hit(false);
