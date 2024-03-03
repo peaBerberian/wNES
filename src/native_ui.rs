@@ -12,8 +12,7 @@ pub(crate) enum NativeUiError {
     UnknownSdl2Error(String),
 }
 
-impl std::error::Error for NativeUiError {
-}
+impl std::error::Error for NativeUiError {}
 
 impl std::fmt::Display for NativeUiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -24,11 +23,7 @@ impl std::fmt::Display for NativeUiError {
 }
 
 pub(crate) trait WNesUi: Sized {
-    fn render_frame(
-        &mut self,
-        frame: Frame,
-        ctrls: (&mut NesController, &mut NesController)
-    );
+    fn render_frame(&mut self, frame: Frame, ctrls: (&mut NesController, &mut NesController));
 }
 
 pub(crate) struct NativeUi {
@@ -64,7 +59,6 @@ impl NativeUi {
             texture_creator: creator,
         })
     }
-
 }
 
 impl WNesUi for NativeUi {
