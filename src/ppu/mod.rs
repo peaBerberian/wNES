@@ -191,12 +191,12 @@ impl NesPpu {
                 && self.registers.mask.show_bg()
                 && self.registers.mask.show_sprites()
             {
+                self.registers.status.set_sprite_0_hit(true);
                 self.frame_renderer.construct_frame(
                     &self.chr_rom,
                     &self.registers,
-                    y * 256 + x as usize,
+                    y * 256 + usize::min(x as usize, 255),
                 );
-                self.registers.status.set_sprite_0_hit(true);
             }
             self.cycles = self.cycles - 341;
             self.curr_scanline += 1;

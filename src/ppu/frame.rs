@@ -167,7 +167,6 @@ impl FrameRenderer {
         let scroll_x = (registers.scroll.horizontal_offset()) as usize;
         let scroll_y = (registers.scroll.vertical_offset()) as usize;
 
-        // TODO handle vertical scrolling and/or mirroring
         let (main_nametable, second_nametable) =
             match (&self.mirroring, registers.ctrl.base_nametable_address()) {
                 (Mirroring::Vertical, 0x2000) | (Mirroring::Vertical, 0x2800) => {
@@ -232,7 +231,9 @@ impl FrameRenderer {
                 pixel_offset_x,
                 pixel_offset_y,
             )| {
-                for i in 0..0x3c0 {
+                let base_nt_idx = (crop_start_y / 8) * 32;
+                let end_nt_idx = ((crop_end_y) / 8) * 32;
+                for i in base_nt_idx..end_nt_idx {
                     let tile_column = i % 32;
                     let tile_row = i / 32;
                     let attribute_table = &name_table[0x3c0..0x400];
@@ -245,30 +246,28 @@ impl FrameRenderer {
                     for y in 0..=7 {
                         let mut upper = tile[y];
                         let mut lower = tile[y + 8];
-
                         for x in (0..=7).rev() {
-                            let value = (1 & lower) << 1 | (1 & upper);
-                            upper = upper >> 1;
-                            lower = lower >> 1;
-                            let rgb = match value {
-                                0 => SYSTEM_PALLETE[self.palette[0] as usize],
-                                1 => SYSTEM_PALLETE[bg_pal[1] as usize],
-                                2 => SYSTEM_PALLETE[bg_pal[2] as usize],
-                                3 => SYSTEM_PALLETE[bg_pal[3] as usize],
-                                _ => panic!("can't be"),
-                            };
                             let pixel_x = tile_column * 8 + x;
                             let pixel_y = tile_row * 8 + y;
-
                             if pixel_x >= crop_start_x
                                 && pixel_x < crop_end_x
                                 && pixel_y >= crop_start_y
-                                && y < crop_end_y
+                                && pixel_y < crop_end_y
                             {
                                 let x = (pixel_x as isize + pixel_offset_x) as usize;
                                 let y = (pixel_y as isize + pixel_offset_y) as usize;
                                 let curr_pixel = y * 256 + x;
                                 if curr_pixel >= self.last_pixel && curr_pixel <= until {
+                                    let value = (1 & lower) << 1 | (1 & upper);
+                                    upper = upper >> 1;
+                                    lower = lower >> 1;
+                                    let rgb = match value {
+                                        0 => SYSTEM_PALLETE[self.palette[0] as usize],
+                                        1 => SYSTEM_PALLETE[bg_pal[1] as usize],
+                                        2 => SYSTEM_PALLETE[bg_pal[2] as usize],
+                                        3 => SYSTEM_PALLETE[bg_pal[3] as usize],
+                                        _ => panic!("can't be"),
+                                    };
                                     self.frame.set_pixel(x, y, rgb);
                                 }
                             }
