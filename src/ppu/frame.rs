@@ -50,6 +50,7 @@ impl Frame {
 }
 
 pub(super) struct FrameRenderer {
+    frame: Frame,
     pub(super) mirroring: Mirroring,
     pub(super) palette: [u8; 32],
     pub(super) vram: [u8; 2048],
@@ -62,11 +63,16 @@ pub(super) struct FrameRenderer {
 impl FrameRenderer {
     pub(super) fn new(mirroring: Mirroring) -> Self {
         Self {
+            frame: Frame::new(),
             mirroring,
             oam_data: [0; 64 * 4],
             palette: [0; 32],
             vram: [0; 2048],
         }
+    }
+
+    pub(super) fn frame(&self) -> &Frame {
+        &self.frame
     }
 
     pub(super) fn construct_frame(
@@ -77,10 +83,9 @@ impl FrameRenderer {
         reg_status: &PpuStatusRegister,
         reg_scroll: &PpuScrollRegister,
         reg_addr: &PpuAddrRegister,
-    ) -> Frame {
-        let mut frame = Frame::new();
+    ) {
         self.render_background_on_frame(
-            &mut frame, chr_rom, reg_ctrl, reg_mask, reg_status, reg_scroll, reg_addr,
+            chr_rom, reg_ctrl, reg_mask, reg_status, reg_scroll, reg_addr,
         );
         for i in (0..self.oam_data.len()).step_by(4).rev() {
             let tile_idx = self.oam_data[i + 1] as u16;
@@ -135,20 +140,18 @@ impl FrameRenderer {
                         _ => panic!("can't be"),
                     };
                     match (flip_horizontal, flip_vertical) {
-                        (false, false) => frame.set_pixel(tile_x + x, tile_y + y, rgb),
-                        (true, false) => frame.set_pixel(tile_x + 7 - x, tile_y + y, rgb),
-                        (false, true) => frame.set_pixel(tile_x + x, tile_y + 7 - y, rgb),
-                        (true, true) => frame.set_pixel(tile_x + 7 - x, tile_y + 7 - y, rgb),
+                        (false, false) => self.frame.set_pixel(tile_x + x, tile_y + y, rgb),
+                        (true, false) => self.frame.set_pixel(tile_x + 7 - x, tile_y + y, rgb),
+                        (false, true) => self.frame.set_pixel(tile_x + x, tile_y + 7 - y, rgb),
+                        (true, true) => self.frame.set_pixel(tile_x + 7 - x, tile_y + 7 - y, rgb),
                     }
                 }
             }
         }
-        frame
     }
 
     fn render_background_on_frame(
         &mut self,
-        frame: &mut Frame,
         chr_rom: &[u8],
         reg_ctrl: &PpuCtrlRegister,
         _reg_mask: &PpuMaskRegister,
@@ -259,7 +262,7 @@ impl FrameRenderer {
                                 && pixel_y >= crop_start_y
                                 && y < crop_end_y
                             {
-                                frame.set_pixel(
+                                self.frame.set_pixel(
                                     (pixel_x as isize + pixel_offset_x) as usize,
                                     (pixel_y as isize + pixel_offset_y) as usize,
                                     rgb,

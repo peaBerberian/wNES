@@ -49,7 +49,7 @@ fn run(rom_file: Vec<u8>, mut ui: impl WNesUi) {
 
     // let mut rng = rand::thread_rng();
 
-    let bus = bus::NesBus::new(&parsed, move |frame: Frame, ctrls| {
+    let bus = bus::NesBus::new(&parsed, move |frame: &Frame, ctrls| {
         ui.render_frame(frame, ctrls);
     });
     let mut cpu = cpu::NesCpu::new(bus);

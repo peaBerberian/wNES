@@ -62,7 +62,7 @@ pub(crate) struct NesBus<'a> {
 
     cycles: usize,
 
-    new_frame_callback: Box<dyn FnMut(Frame, (&mut NesController, &mut NesController)) + 'a>,
+    new_frame_callback: Box<dyn FnMut(&Frame, (&mut NesController, &mut NesController)) + 'a>,
 
     sram: [u8; 8191],
 
@@ -74,7 +74,7 @@ impl<'a> NesBus<'a> {
     /// Create a new NesBus, associated to a single parsed `Rom` struct.
     pub fn new<'cb, F>(rom: &Rom, new_frame_callback: F) -> NesBus<'cb>
     where
-        F: FnMut(Frame, (&mut NesController, &mut NesController)) + 'cb,
+        F: FnMut(&Frame, (&mut NesController, &mut NesController)) + 'cb,
     {
         NesBus {
             prg_rom: rom.prg_rom().to_owned(),

@@ -204,7 +204,7 @@ impl NesPpu {
         }
     }
 
-    pub(crate) fn tick(&mut self, cycles: u32) -> Option<Frame> {
+    pub(crate) fn tick(&mut self, cycles: u32) -> Option<&Frame> {
         self.cycles += cycles;
         if self.cycles >= 341 {
             let y = self.frame_renderer.oam_data[0] as usize;
@@ -227,7 +227,7 @@ impl NesPpu {
                 self.reg_status.set_sprite_0_hit(false);
                 if self.reg_ctrl.generate_vblank_nmi() {
                     self.unhandled_nmi_interrupt = true;
-                    let frame = self.frame_renderer.construct_frame(
+                    self.frame_renderer.construct_frame(
                         &self.chr_rom,
                         &self.reg_ctrl,
                         &self.reg_mask,
@@ -235,7 +235,7 @@ impl NesPpu {
                         &self.reg_scroll,
                         &self.reg_addr,
                     );
-                    return Some(frame);
+                    return Some(self.frame_renderer.frame());
                 }
             } else if self.curr_scanline >= 262 {
                 self.curr_scanline = 0;

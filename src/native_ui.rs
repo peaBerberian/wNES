@@ -23,7 +23,11 @@ impl std::fmt::Display for NativeUiError {
 }
 
 pub(crate) trait WNesUi: Sized {
-    fn render_frame(&mut self, frame: Frame, ctrls: (&mut NesController, &mut NesController));
+    fn render_frame(
+        &mut self,
+        frame: &Frame,
+        ctrls: (&mut NesController, &mut NesController)
+    );
 }
 
 pub(crate) struct NativeUi {
@@ -64,7 +68,7 @@ impl NativeUi {
 impl WNesUi for NativeUi {
     fn render_frame(
         &mut self,
-        frame: Frame,
+        frame: &Frame,
         (controller1, _): (&mut NesController, &mut NesController),
     ) {
         let mut texture = self
