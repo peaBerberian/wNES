@@ -1,6 +1,7 @@
-/// # CPU emulation
-///
-/// Emulates the NES 6502-family microprocessor.
+//! # CPU emulation
+//!
+//! Emulates the NES 6502-family microprocessor.
+
 mod debug;
 mod op_code;
 mod status;

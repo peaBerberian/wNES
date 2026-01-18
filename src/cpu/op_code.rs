@@ -1,6 +1,6 @@
-/// # Op Code parsing
-///
-/// Code regrouping the listing and parsing of NES CPU's opcodes.
+//! # Op Code parsing
+//!
+//! Code regrouping the listing and parsing of NES CPU's opcodes.
 
 /// Structure representing a single parsed OpCode.
 pub(super) struct OpCode {

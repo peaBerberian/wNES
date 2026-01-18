@@ -1,6 +1,7 @@
-/// # CPU debug
-///
-/// Allows to produce visual representation of CPU instructions for debugging.
+//! # CPU debug
+//!
+//! Allows to produce visual representation of CPU instructions for debugging.
+
 use super::op_code::{AddressMode, OpCode};
 
 /// Represents visual formatting of CPU instructions

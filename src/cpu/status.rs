@@ -1,6 +1,6 @@
-/// # CPU Status Register
-///
-/// Simple implementation of the status register of the NES' CPU.
+//! # CPU Status Register
+//!
+//! Simple implementation of the status register of the NES' CPU.
 
 pub(super) struct CpuStatusRegister {
     /// From lsb to msb:
