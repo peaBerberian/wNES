@@ -23,7 +23,8 @@ impl CpuStatusRegister {
     }
 
     pub(super) fn force(&mut self, byt: u8) {
-        self.status = byt & 0b1110_1111;
+        // Ensure bit 5 is 1 always, hardwired that way in actual NES
+        self.status = (byt & 0b1100_1111) | 0b0010_0000;
     }
 
     pub(super) fn carry(&self) -> bool {
