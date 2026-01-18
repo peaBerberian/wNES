@@ -278,7 +278,7 @@ impl PpuStatusRegister {
     }
 
     pub(super) fn in_vblank(&self) -> bool {
-        self.val & 0b0100_0000 > 0
+        self.val & 0b1000_0000 > 0
     }
 
     pub(super) fn set_in_vblank(&mut self, val: bool) {
