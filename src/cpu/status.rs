@@ -103,7 +103,7 @@ impl CpuStatusRegister {
         if with_b_flag {
             self.status | 0b0011_0000
         } else {
-            self.status | 0b010_0000
+            self.status | 0b0010_0000
         }
     }
 }
