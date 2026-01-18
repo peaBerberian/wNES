@@ -184,19 +184,22 @@ impl NesPpu {
             let y = self.frame_renderer.oam_data[0] as usize;
             let x = self.frame_renderer.oam_data[3] as u32;
 
-            // TODO remaining conditions?
-            // https://www.nesdev.org/wiki/PPU_OAM#Sprite_zero_hits
-            if y == self.curr_scanline
-                && x <= self.cycles
-                && self.registers.mask.show_bg()
-                && self.registers.mask.show_sprites()
-            {
-                self.registers.status.set_sprite_0_hit(true);
-                self.frame_renderer.construct_frame(
+            if self.curr_scanline < 240 {
+                self.frame_renderer.render_scanline(
                     &self.chr_rom,
                     &self.registers,
-                    y * 256 + usize::min(x as usize, 255),
+                    self.curr_scanline,
                 );
+
+                // TODO remaining conditions?
+                // https://www.nesdev.org/wiki/PPU_OAM#Sprite_zero_hits
+                if y == self.curr_scanline
+                    && x <= self.cycles
+                    && self.registers.mask.show_bg()
+                    && self.registers.mask.show_sprites()
+                {
+                    self.registers.status.set_sprite_0_hit(true);
+                }
             }
             self.cycles = self.cycles - 341;
             self.curr_scanline += 1;
@@ -206,8 +209,6 @@ impl NesPpu {
                 self.registers.status.set_sprite_0_hit(false);
                 if self.registers.ctrl.generate_vblank_nmi() {
                     self.unhandled_nmi_interrupt = true;
-                    self.frame_renderer
-                        .construct_frame(&self.chr_rom, &self.registers, 61440);
                     return Some(self.frame_renderer.frame());
                 }
             } else if self.curr_scanline >= 262 {

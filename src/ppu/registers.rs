@@ -54,6 +54,7 @@ pub(super) struct PpuCtrlRegister {
     val: u8,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SpriteSize {
     Size8x8,
     Size8x16,

@@ -32,13 +32,13 @@ impl Frame {
     // Create a new void (entirely black) frame.
     pub(super) fn new() -> Self {
         Frame {
-            data: vec![0; (Frame::WIDTH) * (Frame::HEIGHT) * 3],
+            data: vec![0; Frame::WIDTH * Frame::HEIGHT * 3],
         }
     }
 
     /// Set a specific frame to a specific color.
-    pub(super) fn set_pixel(&mut self, x: usize, y: usize, rgb: (u8, u8, u8)) {
-        let base = y * 3 * Frame::WIDTH + x * 3;
+    pub(super) fn set_pixel(&mut self, coord: PixelCoord, rgb: (u8, u8, u8)) {
+        let base = coord.y * 3 * Frame::WIDTH + coord.x * 3;
         if base + 2 < self.data.len() {
             self.data[base] = rgb.0;
             self.data[base + 1] = rgb.1;
@@ -56,8 +56,6 @@ pub(super) struct FrameRenderer {
     /// OAM data port
     /// https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write
     pub(super) oam_data: [u8; 256],
-
-    last_pixel: usize,
 }
 
 impl FrameRenderer {
@@ -68,7 +66,6 @@ impl FrameRenderer {
             oam_data: [0; 64 * 4],
             palette: [0; 32],
             vram: [0; 2048],
-            last_pixel: 0,
         }
     }
 
@@ -76,237 +73,291 @@ impl FrameRenderer {
         &self.frame
     }
 
-    pub(super) fn construct_frame(
+    pub(super) fn render_scanline(
         &mut self,
         chr_rom: &[u8],
         registers: &NesPpuRegister,
-        until: usize,
+        scanline: usize,
     ) {
-        self.render_background_on_frame(chr_rom, registers, until);
+        if scanline >= 240 {
+            return;
+        }
+        for x in 0..256 {
+            let pixel = PixelCoord::new(x, scanline);
+            self.render_background_pixel(chr_rom, registers, pixel);
+        }
+        self.render_sprites_for_scanline(chr_rom, registers, scanline);
+    }
 
-        for i in (0..self.oam_data.len()).step_by(4).rev() {
-            let tile_idx = self.oam_data[i + 1] as u16;
-            let tile_x = self.oam_data[i + 3] as usize;
-            let tile_y = self.oam_data[i] as usize;
+    fn render_background_pixel(
+        &mut self,
+        chr_rom: &[u8],
+        registers: &NesPpuRegister,
+        screen_pixel: PixelCoord,
+    ) {
+        let scroll_x = registers.scroll.horizontal_offset() as usize;
+        let scroll_y = registers.scroll.vertical_offset() as usize;
 
-            let flip_vertical = if self.oam_data[i + 2] >> 7 & 1 == 1 {
-                true
-            } else {
-                false
-            };
-            let flip_horizontal = if self.oam_data[i + 2] >> 6 & 1 == 1 {
-                true
-            } else {
-                false
-            };
-            let pallette_idx = self.oam_data[i + 2] & 0b11;
+        let mut scrolled_x = screen_pixel.x + scroll_x;
+        let mut scrolled_y = screen_pixel.y + scroll_y;
 
-            // TODO
-            let _is_behind_background = self.oam_data[i + 2] & 0b0010_0000 > 0;
-            let sprite_palette = sprite_palette(&self.palette, pallette_idx);
-            let sprite_size = registers.ctrl.sprite_size();
+        let mut use_second_nametable = false;
 
-            let tile = match sprite_size {
-                SpriteSize::Size8x16 => {
-                    let base = if tile_idx % 2 == 0 { 0 } else { 0x1000 };
-                    let start_byte = base + ((tile_idx / 2) * 0x0020) as usize;
-                    // TODO this has never been tested, to check
-                    &chr_rom[start_byte..=start_byte + 31]
-                }
-
-                SpriteSize::Size8x8 => {
-                    let bank: u16 = registers.ctrl.sprite_pattern_table_address();
-                    let start_byte = (bank + tile_idx * 16) as usize;
-                    &chr_rom[start_byte..=start_byte + 15]
-                }
-            };
-
-            // TODO unsure of how to progress for 8x16 sprites
-            for y in 0..=7 {
-                let mut upper = tile[y];
-                let mut lower = tile[y + 8];
-                'x_loop: for x in (0..=7).rev() {
-                    let value = (1 & lower) << 1 | (1 & upper);
-                    upper = upper >> 1;
-                    lower = lower >> 1;
-                    let rgb = match value {
-                        0 => continue 'x_loop, // skip coloring the pixel
-                        1 => SYSTEM_PALLETE[sprite_palette[1] as usize],
-                        2 => SYSTEM_PALLETE[sprite_palette[2] as usize],
-                        3 => SYSTEM_PALLETE[sprite_palette[3] as usize],
-                        _ => panic!("can't be"),
-                    };
-                    let (x, y) = match (flip_horizontal, flip_vertical) {
-                        (false, false) => (tile_x + x, tile_y + y),
-                        (true, false) => (tile_x + 7 - x, tile_y + y),
-                        (false, true) => (tile_x + x, tile_y + 7 - y),
-                        (true, true) => (tile_x + 7 - x, tile_y + 7 - y),
-                    };
-                    let curr_pixel = y * 256 + x;
-                    if curr_pixel <= until && curr_pixel >= self.last_pixel {
-                        self.frame.set_pixel(x, y, rgb);
-                    }
-                }
+        // Handle horizontal wrapping and nametable switching
+        if scrolled_x >= 256 {
+            scrolled_x -= 256;
+            if self.mirroring == Mirroring::Vertical {
+                use_second_nametable = true;
             }
         }
 
-        if until < 61440 {
-            self.last_pixel = until + 1;
-        } else {
-            self.last_pixel = 0;
+        // Handle vertical wrapping and nametable switching
+        if scrolled_y >= 240 {
+            scrolled_y -= 240;
+            if self.mirroring == Mirroring::Horizontal {
+                use_second_nametable = true;
+            }
         }
+
+        let nametable_pixel = PixelCoord::new(scrolled_x, scrolled_y);
+        let tile_coord = TileCoord::from_pixel(nametable_pixel);
+
+        let (nametable, attribute_table) = self.get_nametable_and_attributes(
+            use_second_nametable,
+            registers.ctrl.base_nametable_address(),
+        );
+
+        let bg_palette = background_palette(&self.palette, attribute_table, tile_coord);
+
+        let tile_index = nametable[tile_coord.to_nametable_index()] as u16;
+        let bank = registers.ctrl.background_pattern_table_address();
+        let tile_data =
+            &chr_rom[(bank + tile_index * 16) as usize..=(bank + tile_index * 16 + 15) as usize];
+
+        let (pixel_x_in_tile, pixel_y_in_tile) = tile_coord.pixel_within_tile(nametable_pixel);
+
+        let upper = tile_data[pixel_y_in_tile];
+        let lower = tile_data[pixel_y_in_tile + 8];
+
+        let shift = 7 - pixel_x_in_tile;
+        let value = ((lower >> shift) & 1) << 1 | ((upper >> shift) & 1);
+
+        let rgb = match value {
+            0 => SYSTEM_PALLETE[self.palette[0] as usize],
+            1 => SYSTEM_PALLETE[bg_palette[1] as usize],
+            2 => SYSTEM_PALLETE[bg_palette[2] as usize],
+            3 => SYSTEM_PALLETE[bg_palette[3] as usize],
+            _ => unreachable!(),
+        };
+
+        self.frame.set_pixel(screen_pixel, rgb);
     }
 
-    fn render_background_on_frame(
+    fn get_nametable_and_attributes(
+        &self,
+        use_second: bool,
+        base_nametable_addr: u16,
+    ) -> (&[u8], &[u8]) {
+        let (main_nt, second_nt) = match (&self.mirroring, base_nametable_addr) {
+            (Mirroring::Vertical, 0x2000) | (Mirroring::Vertical, 0x2800) => {
+                (&self.vram[0..0x400], &self.vram[0x400..0x800])
+            }
+            (Mirroring::Vertical, 0x2400) | (Mirroring::Vertical, 0x2C00) => {
+                (&self.vram[0x400..0x800], &self.vram[0..0x400])
+            }
+            (Mirroring::Horizontal, 0x2000) | (Mirroring::Horizontal, 0x2400) => {
+                (&self.vram[0..0x400], &self.vram[0x400..0x800])
+            }
+            (Mirroring::Horizontal, 0x2800) | (Mirroring::Horizontal, 0x2C00) => {
+                (&self.vram[0x400..0x800], &self.vram[0..0x400])
+            }
+            (_, 0x2000) | (_, 0x2400) => (&self.vram[0..0x400], &self.vram[0..0x400]),
+            (_, 0x2800) | (_, 0x2C00) => (&self.vram[0x400..0x800], &self.vram[0x400..0x800]),
+            _ => panic!("Impossible nametable address"),
+        };
+
+        let nametable = if use_second { second_nt } else { main_nt };
+        let attribute_table = &nametable[0x3c0..0x400];
+        (nametable, attribute_table)
+    }
+
+    fn render_sprites_for_scanline(
         &mut self,
         chr_rom: &[u8],
         registers: &NesPpuRegister,
-        until: usize,
+        scanline: usize,
     ) {
-        let bank = registers.ctrl.background_pattern_table_address();
+        // Sprites are evaluated in reverse priority order
+        for sprite_index in (0..64).rev() {
+            let oam_offset = sprite_index * 4;
+            let sprite_y = self.oam_data[oam_offset] as usize;
+            let tile_idx = self.oam_data[oam_offset + 1] as u16;
+            let attributes = self.oam_data[oam_offset + 2];
+            let sprite_x = self.oam_data[oam_offset + 3] as usize;
 
-        let scroll_x = (registers.scroll.horizontal_offset()) as usize;
-        let scroll_y = (registers.scroll.vertical_offset()) as usize;
-
-        let (main_nametable, second_nametable) =
-            match (&self.mirroring, registers.ctrl.base_nametable_address()) {
-                (Mirroring::Vertical, 0x2000) | (Mirroring::Vertical, 0x2800) => {
-                    (&self.vram[0..0x400], &self.vram[0x400..0x800])
-                }
-                (Mirroring::Vertical, 0x2400) | (Mirroring::Vertical, 0x2C00) => {
-                    (&self.vram[0x400..0x800], &self.vram[0..0x400])
-                }
-                (Mirroring::Horizontal, 0x2000) | (Mirroring::Horizontal, 0x2400) => {
-                    (&self.vram[0..0x400], &self.vram[0x400..0x800])
-                }
-                (Mirroring::Horizontal, 0x2800) | (Mirroring::Horizontal, 0x2C00) => {
-                    (&self.vram[0x400..0x800], &self.vram[0..0x400])
-                }
-                (_, 0x2000) | (_, 0x2400) => (&self.vram[0..0x400], &self.vram[0..0x400]),
-                (_, 0x2800) | (_, 0x2C00) => (&self.vram[0x400..0x800], &self.vram[0x400..0x800]),
-                _ => panic!("Impossible"),
+            let sprite_size = registers.ctrl.sprite_size();
+            let sprite_height = match sprite_size {
+                SpriteSize::Size8x8 => 8,
+                SpriteSize::Size8x16 => 16,
             };
 
-        let second_nametable_config = match &self.mirroring {
-            Mirroring::Vertical => (
-                second_nametable,
-                0,                       // crop_start_x
-                0,                       // crop_start_y
-                scroll_x,                // crop_end_x,
-                240,                     // crop_end_y
-                256 - scroll_x as isize, // pixel_offset_x
-                0,                       // pixel_offset_y
-            ),
-            Mirroring::Horizontal => (
-                second_nametable,
-                0,                       // crop_start_x
-                0,                       // crop_start_y
-                256,                     // crop_end_x,
-                scroll_y,                // crop_end_y
-                0,                       // pixel_offset_x
-                240 - scroll_y as isize, // pixel_offset_y
-            ),
-            _ => panic!("Not implemented mirroring yet: {:?}", &self.mirroring),
-        };
+            // Check if sprite is on this scanline
+            if scanline < sprite_y || scanline >= sprite_y + sprite_height {
+                continue;
+            }
 
-        let name_table_configs = [
-            (
-                main_nametable,
-                scroll_x,             // crop_start_x
-                scroll_y,             // crop_start_y
-                256,                  // crop_end_x,
-                240,                  // crop_end_y
-                -(scroll_x as isize), // pixel_offset_x
-                -(scroll_y as isize), // pixel_offset_y
-            ),
-            second_nametable_config,
-        ];
+            let flip_vertical = (attributes >> 7) & 1 == 1;
+            let flip_horizontal = (attributes >> 6) & 1 == 1;
+            let palette_idx = attributes & 0b11;
+            let _behind_background = attributes & 0b0010_0000 != 0; // TODO: implement priority
 
-        name_table_configs.into_iter().for_each(
-            |(
-                name_table,
-                crop_start_x,
-                crop_start_y,
-                crop_end_x,
-                crop_end_y,
-                pixel_offset_x,
-                pixel_offset_y,
-            )| {
-                let base_nt_idx = (crop_start_y / 8) * 32;
-                let end_nt_idx = ((crop_end_y) / 8) * 32;
-                for i in base_nt_idx..end_nt_idx {
-                    let tile_column = i % 32;
-                    let tile_row = i / 32;
-                    let attribute_table = &name_table[0x3c0..0x400];
-                    let bg_pal =
-                        background_palette(&self.palette, attribute_table, tile_column, tile_row);
+            let sprite_palette = sprite_palette(&self.palette, palette_idx);
 
-                    let tile = name_table[i] as u16;
-                    let tile =
-                        &chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
-                    for y in 0..=7 {
-                        let mut upper = tile[y];
-                        let mut lower = tile[y + 8];
-                        for x in (0..=7).rev() {
-                            let pixel_x = tile_column * 8 + x;
-                            let pixel_y = tile_row * 8 + y;
-                            if pixel_x >= crop_start_x
-                                && pixel_x < crop_end_x
-                                && pixel_y >= crop_start_y
-                                && pixel_y < crop_end_y
-                            {
-                                let x = (pixel_x as isize + pixel_offset_x) as usize;
-                                let y = (pixel_y as isize + pixel_offset_y) as usize;
-                                let curr_pixel = y * 256 + x;
-                                if curr_pixel >= self.last_pixel && curr_pixel <= until {
-                                    let value = (1 & lower) << 1 | (1 & upper);
-                                    upper = upper >> 1;
-                                    lower = lower >> 1;
-                                    let rgb = match value {
-                                        0 => SYSTEM_PALLETE[self.palette[0] as usize],
-                                        1 => SYSTEM_PALLETE[bg_pal[1] as usize],
-                                        2 => SYSTEM_PALLETE[bg_pal[2] as usize],
-                                        3 => SYSTEM_PALLETE[bg_pal[3] as usize],
-                                        _ => panic!("can't be"),
-                                    };
-                                    self.frame.set_pixel(x, y, rgb);
-                                }
-                            }
-                        }
-                    }
+            let tile_data = match sprite_size {
+                SpriteSize::Size8x16 => {
+                    let bank = if tile_idx % 2 == 0 { 0 } else { 0x1000 };
+                    let start_byte = bank + ((tile_idx / 2) * 0x0020) as usize;
+                    &chr_rom[start_byte..start_byte + 32]
                 }
-            },
-        );
+                SpriteSize::Size8x8 => {
+                    let bank = registers.ctrl.sprite_pattern_table_address();
+                    let start_byte = (bank + tile_idx * 16) as usize;
+                    &chr_rom[start_byte..start_byte + 16]
+                }
+            };
+
+            let y_in_sprite = scanline - sprite_y;
+            let y_in_tile = if flip_vertical {
+                7 - (y_in_sprite % 8)
+            } else {
+                y_in_sprite % 8
+            };
+
+            let tile_offset = if sprite_size == SpriteSize::Size8x16 && y_in_sprite >= 8 {
+                16
+            } else {
+                0
+            };
+
+            let upper = tile_data[tile_offset + y_in_tile];
+            let lower = tile_data[tile_offset + y_in_tile + 8];
+
+            for x_in_sprite in 0..8 {
+                let x_in_tile = if flip_horizontal {
+                    x_in_sprite
+                } else {
+                    7 - x_in_sprite
+                };
+
+                let value = ((lower >> x_in_tile) & 1) << 1 | ((upper >> x_in_tile) & 1);
+
+                if value == 0 {
+                    continue; // Transparent pixel
+                }
+
+                let screen_x = sprite_x + x_in_sprite;
+                if screen_x >= 256 {
+                    continue;
+                }
+
+                let rgb = match value {
+                    1 => SYSTEM_PALLETE[sprite_palette[1] as usize],
+                    2 => SYSTEM_PALLETE[sprite_palette[2] as usize],
+                    3 => SYSTEM_PALLETE[sprite_palette[3] as usize],
+                    _ => unreachable!(),
+                };
+
+                let pixel = PixelCoord::new(screen_x, scanline);
+                self.frame.set_pixel(pixel, rgb);
+            }
+        }
+    }
+
+    // TODO: Implement proper sprite 0 hit detection
+    // Should check:
+    // 1. Sprite 0 is enabled and visible on current scanline
+    // 2. Background is enabled
+    // 3. Both sprite 0 pixel and background pixel are opaque (non-zero)
+    // 4. X coordinate is not 255
+    // 5. Rendering is enabled in leftmost 8 pixels (if x < 8)
+    pub(super) fn check_sprite_0_hit(&self, _scanline: usize, _cycle: usize) -> bool {
+        // Placeholder - not yet implemented correctly
+        false
     }
 }
 
-fn sprite_palette(palette: &[u8], pallete_idx: u8) -> [u8; 4] {
-    let start = 0x11 + (pallete_idx * 4) as usize;
+fn sprite_palette(palette: &[u8], palette_idx: u8) -> [u8; 4] {
+    let start = 0x11 + (palette_idx * 4) as usize;
     [0, palette[start], palette[start + 1], palette[start + 2]]
 }
 
-fn background_palette(
-    palette: &[u8],
-    attribute_table: &[u8],
-    tile_column: usize,
-    tile_row: usize,
-) -> [u8; 4] {
-    let attr_table_idx = tile_row / 4 * 8 + tile_column / 4;
-    let attr_byte = attribute_table[attr_table_idx]; // note: still using hardcoded first nametable
+fn background_palette(palette: &[u8], attribute_table: &[u8], tile_coord: TileCoord) -> [u8; 4] {
+    let attr_table_idx = tile_coord.row / 4 * 8 + tile_coord.col / 4;
+    let attr_byte = attribute_table[attr_table_idx];
 
-    let pallet_idx = match (tile_column % 4 / 2, tile_row % 4 / 2) {
+    let palette_idx = match (tile_coord.col % 4 / 2, tile_coord.row % 4 / 2) {
         (0, 0) => attr_byte & 0b11,
         (1, 0) => (attr_byte >> 2) & 0b11,
         (0, 1) => (attr_byte >> 4) & 0b11,
         (1, 1) => (attr_byte >> 6) & 0b11,
-        (_, _) => panic!("should not happen"),
+        _ => unreachable!(),
     };
 
-    let pallete_start: usize = 1 + (pallet_idx as usize) * 4;
+    let palette_start = 1 + (palette_idx as usize) * 4;
     [
         palette[0],
-        palette[pallete_start],
-        palette[pallete_start + 1],
-        palette[pallete_start + 2],
+        palette[palette_start],
+        palette[palette_start + 1],
+        palette[palette_start + 2],
     ]
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PixelCoord {
+    pub x: usize,
+    pub y: usize,
+}
+
+impl PixelCoord {
+    pub fn new(x: usize, y: usize) -> Self {
+        Self { x, y }
+    }
+
+    pub fn to_linear(&self) -> usize {
+        self.y * 256 + self.x
+    }
+
+    pub fn from_linear(pos: usize) -> Self {
+        Self {
+            x: pos % 256,
+            y: pos / 256,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct TileCoord {
+    pub col: usize,
+    pub row: usize,
+}
+
+impl TileCoord {
+    pub fn new(col: usize, row: usize) -> Self {
+        Self { col, row }
+    }
+
+    pub fn from_pixel(pixel: PixelCoord) -> Self {
+        Self {
+            col: pixel.x / 8,
+            row: pixel.y / 8,
+        }
+    }
+
+    pub fn to_nametable_index(&self) -> usize {
+        self.row * 32 + self.col
+    }
+
+    pub fn pixel_within_tile(&self, pixel: PixelCoord) -> (usize, usize) {
+        (pixel.x % 8, pixel.y % 8)
+    }
 }
