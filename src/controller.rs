@@ -90,7 +90,7 @@ impl NesController {
     /// # Arguments
     ///
     /// * `is_pressed` - `true` if the button just began to be pressed.
-    /// `false` if it was just un-pressed.
+    ///   `false` if it was just un-pressed.
     pub(crate) fn set_a(&mut self, is_pressed: bool) {
         if is_pressed {
             self.curr_button_state |= 0b00000001;
@@ -104,7 +104,7 @@ impl NesController {
     /// # Arguments
     ///
     /// * `is_pressed` - `true` if the button just began to be pressed.
-    /// `false` if it was just un-pressed.
+    ///   `false` if it was just un-pressed.
     pub(crate) fn set_b(&mut self, is_pressed: bool) {
         if is_pressed {
             self.curr_button_state |= 0b00000010;
@@ -118,7 +118,7 @@ impl NesController {
     /// # Arguments
     ///
     /// * `is_pressed` - `true` if the button just began to be pressed.
-    /// `false` if it was just un-pressed.
+    ///   `false` if it was just un-pressed.
     pub(crate) fn set_select(&mut self, is_pressed: bool) {
         if is_pressed {
             self.curr_button_state |= 0b00000100;
@@ -132,7 +132,7 @@ impl NesController {
     /// # Arguments
     ///
     /// * `is_pressed` - `true` if the button just began to be pressed.
-    /// `false` if it was just un-pressed.
+    ///   `false` if it was just un-pressed.
     pub(crate) fn set_start(&mut self, is_pressed: bool) {
         if is_pressed {
             self.curr_button_state |= 0b00001000;
@@ -146,7 +146,7 @@ impl NesController {
     /// # Arguments
     ///
     /// * `is_pressed` - `true` if the button just began to be pressed.
-    /// `false` if it was just un-pressed.
+    ///   `false` if it was just un-pressed.
     pub(crate) fn set_up(&mut self, is_pressed: bool) {
         if is_pressed {
             self.curr_button_state |= 0b00010000;
@@ -160,7 +160,7 @@ impl NesController {
     /// # Arguments
     ///
     /// * `is_pressed` - `true` if the button just began to be pressed.
-    /// `false` if it was just un-pressed.
+    ///   `false` if it was just un-pressed.
     pub(crate) fn set_down(&mut self, is_pressed: bool) {
         if is_pressed {
             self.curr_button_state |= 0b00100000;
@@ -174,7 +174,7 @@ impl NesController {
     /// # Arguments
     ///
     /// * `is_pressed` - `true` if the button just began to be pressed.
-    /// `false` if it was just un-pressed.
+    ///   `false` if it was just un-pressed.
     pub(crate) fn set_left(&mut self, is_pressed: bool) {
         if is_pressed {
             self.curr_button_state |= 0b01000000;
@@ -188,7 +188,7 @@ impl NesController {
     /// # Arguments
     ///
     /// * `is_pressed` - `true` if the button just began to be pressed.
-    /// `false` if it was just un-pressed.
+    ///   `false` if it was just un-pressed.
     pub(crate) fn set_right(&mut self, is_pressed: bool) {
         if is_pressed {
             self.curr_button_state |= 0b10000000;

@@ -33,9 +33,8 @@ fn main() {
         Ok(ui) => run(rom_file, ui),
         Err(e) => {
             eprintln!("Could not initialize UI: {:?}", e);
-            return;
         }
-    };
+    }
 }
 
 fn run(rom_file: Vec<u8>, mut ui: impl WNesUi) {

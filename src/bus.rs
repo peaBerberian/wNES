@@ -62,13 +62,15 @@ pub(crate) struct NesBus<'a> {
 
     cycles: usize,
 
-    new_frame_callback: Box<dyn FnMut(&Frame, (&mut NesController, &mut NesController)) + 'a>,
+    new_frame_callback: Box<RenderFrameFn<'a>>,
 
     sram: [u8; 8191],
 
     controller1: NesController,
     controller2: NesController,
 }
+
+type RenderFrameFn<'a> = dyn FnMut(&Frame, (&mut NesController, &mut NesController)) + 'a;
 
 impl<'a> NesBus<'a> {
     /// Create a new NesBus, associated to a single parsed `Rom` struct.

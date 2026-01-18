@@ -201,7 +201,7 @@ impl NesPpu {
                     self.registers.status.set_sprite_0_hit(true);
                 }
             }
-            self.cycles = self.cycles - 341;
+            self.cycles -= 341;
             self.curr_scanline += 1;
 
             if self.curr_scanline == 241 {

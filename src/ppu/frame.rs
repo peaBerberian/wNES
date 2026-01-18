@@ -323,7 +323,7 @@ impl PixelCoord {
         Self { x, y }
     }
 
-    pub fn to_linear(&self) -> usize {
+    pub fn to_linear(self) -> usize {
         self.y * 256 + self.x
     }
 
@@ -353,7 +353,7 @@ impl TileCoord {
         }
     }
 
-    pub fn to_nametable_index(&self) -> usize {
+    pub fn to_nametable_index(self) -> usize {
         self.row * 32 + self.col
     }
 
